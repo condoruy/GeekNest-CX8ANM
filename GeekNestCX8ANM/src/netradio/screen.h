@@ -36,3 +36,5 @@ void screen_draw(const net_view_t& view);
 void screen_setup(const char* ap_ssid, const char* ap_password, const char* ip, const char* reason);
 // Connecting progress screen.
 void screen_connecting(const char* ssid, int seconds);
+// Full-screen progress bar (firmware update).
+void screen_progress(const char* title, int percent);

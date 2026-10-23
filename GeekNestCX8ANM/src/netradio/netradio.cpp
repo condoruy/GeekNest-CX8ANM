@@ -5,6 +5,7 @@
 #include "player.h"
 #include "screen.h"
 #include "webui.h"
+#include "updater.h"
 #include "ui/splash.h"
 #include <Arduino.h>
 #include <ESPmDNS.h>
@@ -47,6 +48,9 @@ bool clock_stored = false;
 volatile bool ntp_synced = false;
 void on_time_sync(struct timeval*) { ntp_synced = true; }
 String names[NET_MAX_STATIONS];
+// Updates
+bool install_requested = false, install_pending = false, update_announced = false;
+uint32_t online_at = 0, last_update_check = 0;
 
 // Encoder push and side keys
 bool previous_pressed = false, held = false, power_pending = false, long_pending = false;
@@ -110,7 +114,7 @@ void start_access_point(const char* reason) {
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASSWORD);
   delay(100);
-  webui_begin(true);
+  webui_begin(true, WEBUI_NET);
   screen_setup(AP_SSID, AP_PASSWORD, WiFi.softAPIP().toString().c_str(), reason);
   Serial.printf("CX8ANM: access point %s at %s (%s)\n", AP_SSID, WiFi.softAPIP().toString().c_str(), reason);
 }
@@ -121,10 +125,17 @@ void go_online() {
   sntp_set_time_sync_notification_cb(on_time_sync);
   configTime(0, 0, "pool.ntp.org", "time.google.com", "uy.pool.ntp.org");
   apply_timezone(); // configTime() sets TZ to UTC; restore the local zone
-  webui_begin(false);
+  webui_begin(false, WEBUI_NET);
   screen_invalidate();
   Serial.printf("CX8ANM: online %s IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
-  if (net_config.autoplay) play_current();
+  online_at = millis();
+  install_pending = updater_take_pending(); // Requested from the RF web page
+  if (install_pending && !updater_check_async()) {
+    install_pending = false;
+    show_notice(updater.error, 6000);
+  }
+  if (install_pending) show_notice("Buscando la actualización en GitHub...", 20000);
+  else if (net_config.autoplay) play_current();
 }
 
 int wifi_bars() {
@@ -153,6 +164,21 @@ void shutdown_audio() {
   WiFi.mode(WIFI_OFF);
   Serial.println("CX8ANM: power off");
   board_power_off();
+}
+
+void progress_screen(int percent) { screen_progress("Actualizando firmware", percent); }
+[[noreturn]] void install_update() {
+  save_now();
+  shutdown_audio();
+  progress_screen(0);
+  if (updater_install(progress_screen)) {
+    cx8_message("Firmware actualizado", ("Version " + updater.latest + " - reiniciando...").c_str());
+    delay(1500);
+    ESP.restart();
+  }
+  cx8_message("No se pudo actualizar", updater.error.c_str());
+  delay(4000);
+  ESP.restart(); // Back to a clean state with the current firmware
 }
 
 // --- Input ------------------------------------------------------------------
@@ -333,13 +359,14 @@ void net_action_wifi_saved(void) {
   ESP.restart();
 }
 void net_action_switch_rf(void) { to_rf(); }
+void net_action_update_start(void) { install_requested = true; }
 bool net_is_access_point(void) { return phase == PHASE_ACCESS_POINT; }
 String net_status_json(void) {
   player_status_t p;
   player_get_status(&p);
   static const char* states[] = {"IDLE", "CONNECTING", "PLAYING", "ERROR"};
   String j = "{";
-  j += "\"ver\":\"" CX8_FIRMWARE_VERSION "\",";
+  j += "\"mode\":\"net\",\"ver\":\"" CX8_FIRMWARE_VERSION "\",";
   j += "\"ap\":" + String(phase == PHASE_ACCESS_POINT ? "true" : "false") + ",";
   j += "\"ssid\":\"" + json_escape(WiFi.SSID()) + "\",";
   j += "\"ip\":\"" + (phase == PHASE_ACCESS_POINT ? WiFi.softAPIP() : WiFi.localIP()).toString() + "\",";
@@ -351,7 +378,9 @@ String net_status_json(void) {
   j += "\"codec\":\"" + json_escape(p.codec) + "\",\"br\":" + String(p.bitrate) + ",";
   j += "\"vol\":" + String(net_config.volume) + ",\"mute\":" + String(muted ? "true" : "false") + ",";
   j += "\"bri\":" + String(net_config.brightness) + ",\"tz\":" + String(net_config.utc_offset) + ",";
-  j += "\"bat\":" + String(battery.volts, 2) + ",\"heap\":" + String(ESP.getFreeHeap());
+  j += "\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",";
+  j += "\"bat\":" + String(battery.volts, 2) + ",\"heap\":" + String(ESP.getFreeHeap()) + ",";
+  j += "\"update\":" + updater_json();
   j += "}";
   return j;
 }
@@ -427,6 +456,23 @@ void netradio_update(void) {
   }
   if (p.state == PLAYER_PLAYING) { retry_at = 0; retry_delay = 5000; }
 
+  // Updates: requested from the web page, handed over from RF mode, or periodic checks.
+  if (install_requested) install_update();
+  if (install_pending && !updater.checking && updater.checked_at) {
+    install_pending = false;
+    if (updater.available) install_update();
+    show_notice(updater.error.length() ? updater.error : String("Ya tenés la última versión"), 5000);
+    if (net_config.autoplay) play_current();
+  }
+  if (net_config.auto_update_check && !updater.checking && !install_pending &&
+      ((!last_update_check && now - online_at > 30000) || (last_update_check && now - last_update_check > 12UL * 3600 * 1000))) {
+    last_update_check = now;
+    updater_check_async();
+  }
+  if (updater.available && !update_announced) {
+    update_announced = true;
+    show_notice("Nueva versión " + updater.latest + " disponible: actualizá desde la página web", 10000);
+  }
   if (!clock_stored && ntp_synced) store_clock_for_receiver();
   if (state_dirty && now - state_changed > 3000) save_now();
   if (now - last_battery >= 5000) { last_battery = now; battery = board_battery_read(); }

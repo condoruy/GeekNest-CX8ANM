@@ -3,7 +3,7 @@
 # Requisitos: arduino-cli, core "esp32:esp32@2.0.17" (o instalado a mano como espressif:esp32).
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-FQBN="${FQBN:-esp32:esp32:esp32:PartitionScheme=huge_app,PSRAM=disabled,CPUFreq=240,FlashMode=dio,FlashFreq=40}"
+FQBN="${FQBN:-esp32:esp32:esp32:PartitionScheme=min_spiffs,PSRAM=disabled,CPUFreq=240,FlashMode=dio,FlashFreq=40}"
 FLAGS="-I$HERE/GeekNestCX8ANM/src -DBOARD_V5A -DCORE_DEBUG_LEVEL=0"
 arduino-cli compile -b "$FQBN" \
   --build-property "compiler.c.extra_flags=$FLAGS" \

@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 title CX8ANM - Instalar firmware en GeekNest V5A
-set FIRMWARE=CX8ANM-GeekNestV5A-v1.0.0-completo.bin
+set FIRMWARE=CX8ANM-GeekNestV5A-completo.bin
 echo.
 echo  === PASO 2: INSTALAR FIRMWARE CX8ANM ===
 if exist respaldo_geeknest_original.bin goto :grabar

@@ -12,5 +12,6 @@ void net_action_timezone(int minutes);
 void net_action_stations_changed(void);
 void net_action_wifi_saved(void);      // Restart and connect with the new credentials
 void net_action_switch_rf(void);
+void net_action_update_start(void);   // Install the version found on GitHub
 String net_status_json(void);
 bool net_is_access_point(void);

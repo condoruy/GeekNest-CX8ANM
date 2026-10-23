@@ -1,6 +1,7 @@
 #include "screen.h"
 #include "boards/display.hpp"
 #include "ui/splash.h"
+#include "fonts_cx8.h"
 extern "C" {
 #include "boards/board.h"
 }
@@ -19,9 +20,10 @@ constexpr uint16_t WARN = 0xFE60;     // yellow
 constexpr uint16_t BAD = 0xF208;      // red
 
 constexpr int W = 320;
-const lgfx::IFont* F12 = &fonts::efontCN_12;
-const lgfx::IFont* F16 = &fonts::efontCN_16;
-const lgfx::IFont* F24B = &fonts::efontCN_24_b;
+const lgfx::IFont* F12 = &cx8_sans12;
+const lgfx::IFont* F16 = &cx8_sans16;
+const lgfx::IFont* F16B = &cx8_sans16b;
+const lgfx::IFont* F24B = &cx8_sans24b;
 
 lgfx::LGFX_Device& g() { return board_display_device(); }
 
@@ -171,7 +173,7 @@ void draw_title(const net_view_t& v) {
   String lines[3];
   const String text = v.notice.length() ? v.notice : (v.player.title[0] ? String(v.player.title) : String("-"));
   const int n = wrap(text, W - 36, lines, 3);
-  for (int i = 0; i < n; ++i) g().drawString(lines[i], 18, 128 + i * 16);
+  for (int i = 0; i < n; ++i) g().drawString(lines[i], 18, 126 + i * 17);
 }
 
 void draw_volume(const net_view_t& v) {
@@ -321,6 +323,33 @@ void screen_connecting(const char* ssid, int seconds) {
   d.setTextColor(TEAL, BG);
   d.fillRect(0, 180, W, 24, BG);
   d.drawString(String(seconds) + " s" + dots, W / 2, 190);
+  d.endWrite();
+  full = true;
+}
+
+void screen_progress(const char* title, int percent) {
+  auto& d = g();
+  static bool drawn = false;
+  d.startWrite();
+  if (percent <= 0 || !drawn) {
+    d.fillScreen(BG);
+    d.setTextDatum(lgfx::middle_center);
+    d.setFont(F24B);
+    d.setTextColor(ACCENT, BG);
+    d.drawString(title, W / 2, 80);
+    d.setFont(F16);
+    d.setTextColor(TEXT, BG);
+    d.drawString("No apagues la radio", W / 2, 112);
+    d.drawRoundRect(30, 140, W - 60, 22, 6, BORDER);
+    drawn = true;
+  }
+  const int p = percent < 0 ? 0 : percent > 100 ? 100 : percent;
+  d.fillRoundRect(33, 143, (W - 66) * p / 100, 16, 4, ACCENT);
+  d.fillRect(0, 172, W, 26, BG);
+  d.setTextDatum(lgfx::middle_center);
+  d.setFont(F16);
+  d.setTextColor(TEXT, BG);
+  d.drawString(String(p) + " %", W / 2, 184);
   d.endWrite();
   full = true;
 }

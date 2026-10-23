@@ -1,9 +1,11 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.0.0)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.1.0)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
 CONTENIDO
-  CX8ANM-GeekNestV5A-v1.0.0-completo.bin   firmware (se graba en la direccion 0x0)
+  CX8ANM-GeekNestV5A-completo.bin          firmware completo, se graba por cable en la direccion 0x0
+  CX8ANM-GeekNestV5A-app.bin               solo la aplicacion, para actualizar por WiFi desde la web
+  ota.json                                 version publicada (la radio lo consulta para actualizarse)
   1_RESPALDAR_firmware_original.bat        copia el firmware de fabrica (HACERLO PRIMERO)
   2_INSTALAR_CX8ANM.bat                    graba el firmware CX8ANM
   3_RESTAURAR_firmware_original.bat        vuelve al firmware de fabrica
@@ -19,7 +21,7 @@ INSTALACION (Windows)
 
   Alternativa sin Python (solo para instalar, no respalda):
   Chrome o Edge -> https://espressif.github.io/esptool-js/  -> Baudrate 115200 -> Connect
-  -> Flash Address 0x0 -> elegir el .bin completo -> Program.
+  -> Flash Address 0x0 -> elegir CX8ANM-GeekNestV5A-completo.bin -> Program.
 
 LLAVE ANALOG / DIGITAL DEL PARLANTE  (importante)
   Receptor RF     -> ANALOG
@@ -51,12 +53,37 @@ PRIMERA VEZ EN RADIO INTERNET (configurar WiFi)
   Si despues no encuentra la red, vuelve solo al modo configuracion.
   En ese modo, pulsar la rueda reintenta la conexion.
 
-PAGINA WEB DE CONTROL (con la radio conectada a tu WiFi)
-  http://cx8anm.local   o la IP que muestra la pantalla abajo.
+PAGINA WEB DE CONTROL (en los DOS modos, con la radio conectada a tu WiFi)
+  http://cx8anm.local   o la IP que muestra la pantalla.
+  En Radio Internet:
   - Ver que suena, cambiar emisora, volumen, silenciar
   - Agregar, editar, ordenar y borrar emisoras (hasta 40, MP3 o AAC, http o https)
+  En Receptor RF:
+  - Ver frecuencia, banda, modo, senal, SNR, estereo y RDS
+  - Sintonizar escribiendo la frecuencia (100.3 = MHz, 7100 = kHz), pasos, busqueda
+  - Elegir banda (LW, MW, SW, VHF, AIR), modo (FM, AM, LSB, USB) y paso
+  - Volumen, silenciar, temperatura y humedad
+  - Favoritos: guardar la frecuencia actual y volver a ella con un clic
+  En los dos:
   - Cambiar la red WiFi, zona horaria y brillo
-  - Boton para pasar al receptor RF
+  - Pasar de un modo al otro
+  - Buscar e instalar actualizaciones
+  El WiFi en modo RF se puede apagar en Ajustes (menos ruido en onda corta debil).
+  La primera vez el WiFi se configura desde el modo Radio Internet.
+
+ACTUALIZAR EL FIRMWARE POR WIFI (desde v1.1.0)
+  - La radio revisa sola GitHub (condoruy/GeekNest-CX8ANM) al rato de conectarse y cada 12 horas.
+    Si hay version nueva lo avisa en pantalla y en la pagina web.
+  - En la web: seccion Firmware -> "Buscar actualizacion en GitHub" -> "Actualizar ahora".
+    Descarga, verifica el archivo (SHA-256) y se reinicia sola. No apagarla mientras tanto.
+  - Si se pide desde el modo RF, la radio pasa sola a Radio Internet para instalarla.
+  - Tambien se puede subir a mano el archivo CX8ANM-GeekNestV5A-app.bin desde la web.
+  - Si algo falla, la radio sigue con la version anterior.
+
+PASAR DE v1.0.0 A v1.1.0
+  La v1.1.0 cambia la organizacion de la memoria (para poder actualizar por WiFi),
+  asi que esta UNA vez hay que grabarla por cable con 2_INSTALAR_CX8ANM.bat.
+  Despues, las siguientes versiones se instalan por WiFi.
 
 EMISORAS INCLUIDAS (editables desde la web)
   El Espectador 810, Radio Carve 850, Sarandi 690, Del Sol FM, Oceano FM, FM Hit 90.3
@@ -69,6 +96,8 @@ RELOJ
 LIMITACIONES CONOCIDAS
   - No usa PSRAM (la placa la tiene, pero activarla cuelga el equipo por el pin GPIO12),
     asi que FLAC y listas .m3u8 (HLS) no funcionan. MP3 y AAC si.
+  - Las fuentes chinas se reemplazaron por letras latinas (con acentos y ñ) para que entren
+    dos copias del firmware en la memoria; el texto RDS en chino ya no se muestra.
   - El "pop" al encender o cambiar de banda es del amplificador (hardware).
   - La banda AIR de tinyradio es experimental.
   - Al grabar el firmware se borran los ajustes guardados.
@@ -76,6 +105,6 @@ LIMITACIONES CONOCIDAS
 CREDITOS Y LICENCIAS
   Receptor: tinyradio de lsongdev (MIT) - https://github.com/lsongdev/tinyradio
   Audio por Internet: ESP32-audioI2S de schreibfaul1 (GPL-3.0)
-  Graficos: LovyanGFX (FreeBSD)
+  Graficos: LovyanGFX (FreeBSD); fuentes efont (licencia BSD) y DejaVu Sans (licencia Bitstream Vera)
   Por incluir ESP32-audioI2S, el firmware combinado se distribuye bajo GPL-3.0.
   Firmware CX8ANM - 73!

@@ -3,6 +3,8 @@
 #include "rds_clock.h"
 #include "boot_mode.h"
 #include "ui/splash.h"
+#include "rf_remote.h"
+#include "netradio/rfweb.h"
 #include "boards/board.h"
 #include "drivers/si473x/si473x.h"
 #include "hal/clock.h"
@@ -58,6 +60,8 @@ enum { LONG_PRESS_MS = 650, POWER_OFF_MS = 3000 }; // Power off well apart from 
 static uint32_t pressed_at = 0, edited_at = 0, last_signal = 0, last_battery = 0, last_draw = 0, last_tune = 0, last_rds = 0;
 
 static void switch_to_net(void);
+static char remote_notice[64];
+static uint32_t remote_notice_until = 0;
 static int clamp(int value, int low, int high) { return value < low ? low : value > high ? high : value; }
 static si473x_reception_t* settings(void) { return &reception[radio_model_mode(&model)]; }
 static radio_settings_t saved_settings(void) {
@@ -177,7 +181,8 @@ static void draw(bool extras_only) {
   view.audio_status_known = chip.signal.quality_known && !reconfigure && !chip.tuning && !chip.seeking;
   char theme_text[32];
   snprintf(theme_text, sizeof theme_text, "Theme: %s", ui_theme_name(theme));
-  view.notice = power_pending ? "Release to power off" : theme_notice ? theme_text : NULL;
+  const bool remote_active = remote_notice[0] && (int32_t)(remote_notice_until - millis()) > 0;
+  view.notice = power_pending ? "Release to power off" : theme_notice ? theme_text : remote_active ? remote_notice : NULL;
   if (extras_only) ui_draw_extras(&view); else ui_draw(&view);
 }
 static void fail(void) {
@@ -401,6 +406,7 @@ void receiver_begin(void) {
   // A key still held from power-on must be released before it acts.
   previous_pressed = held = board_button_pressed();
   if (failed) fail();
+  rfweb_begin(); // CX8ANM: optional WiFi + web control; after the frame buffers are allocated.
 }
 void receiver_update(void) {
   const uint32_t now = millis();
@@ -482,6 +488,8 @@ void receiver_update(void) {
     }
   }
   if (dirty && now - last_draw >= 50) { dirty = false; last_draw = now; if (lcd) draw(false); }
+  if (remote_notice[0] && (int32_t)(remote_notice_until - now) <= 0) { remote_notice[0] = 0; dirty = true; }
+  rfweb_update();
   if (screenshot_requested && (last_draw || !lcd || !buffered)) {
     screenshot_requested = false;
     if (!lcd) serial_println("SCREENSHOT_ERROR framebuffer unavailable");
@@ -489,3 +497,94 @@ void receiver_update(void) {
   }
   delay(1);
 }
+
+// ---------------------------------------------------------------------------
+// CX8ANM remote control (web page). Runs on the loop, like the local inputs.
+void rf_remote_status(rf_remote_status_t* out) {
+  memset(out, 0, sizeof *out);
+  const radio_band_t* band = radio_model_band(&model);
+  out->band = band->name;
+  out->band_index = (int)model.band;
+  out->frequency_hz = radio_model_frequency(&model);
+  out->step_hz = radio_model_step(&model);
+  out->mode_index = (int)radio_model_mode(&model);
+  out->mode = si473x_mode_name(radio_model_mode(&model));
+  out->rssi = chip.signal.rssi; out->snr = chip.signal.snr;
+  out->stereo = chip.signal.pilot; out->valid = chip.signal.valid;
+  out->seeking = chip.seeking || pending_seek; out->seek_mode = seek_mode; out->tuning = chip.tuning;
+  out->failed = failed; out->muted = muted; out->volume = volume;
+  out->ps = rds_ps(&chip.rds); out->text = radio_message();
+  out->error = failed ? (frontend_failed ? "RF front end failed" : si473x_error_text(&chip)) : "";
+  out->battery_volts = supply.volts; out->battery_percent = supply.plausible ? supply.estimated_percent : -1;
+  out->environment_valid = environment_known && environment.valid;
+  out->temperature_milli = environment.milli_celsius; out->humidity_milli = environment.milli_percent;
+}
+int rf_remote_band_count(void) { return RADIO_BAND_COUNT; }
+const char* rf_remote_band_name(int index, bool* available, uint32_t* min_hz, uint32_t* max_hz) {
+  if (index < 0 || index >= RADIO_BAND_COUNT) return NULL;
+  *available = radio_bands[index].available; *min_hz = radio_bands[index].min_hz; *max_hz = radio_bands[index].max_hz;
+  return radio_bands[index].name;
+}
+static bool try_frequency(radio_model_t* candidate, uint32_t hz) {
+  if (radio_model_set_frequency(candidate, hz)) return true;
+  // Round to the band's grid: 10 kHz on FM, 1 kHz on AM and converted bands.
+  const uint32_t grid = radio_model_band(candidate)->fm ? 10000 : 1000;
+  return radio_model_set_frequency(candidate, (hz + grid / 2) / grid * grid);
+}
+bool rf_remote_tune_hz(uint32_t hz) {
+  if (failed) return false;
+  radio_model_t candidate = model;
+  bool found = false;
+  const radio_band_t* current = radio_model_band(&model);
+  if (hz >= current->min_hz && hz <= current->max_hz) found = try_frequency(&candidate, hz);
+  for (size_t i = 0; !found && i < RADIO_BAND_COUNT; ++i) {
+    if (!radio_bands[i].available || hz < radio_bands[i].min_hz || hz > radio_bands[i].max_hz) continue;
+    candidate = model;
+    if (radio_model_set_band(&candidate, i)) found = try_frequency(&candidate, hz);
+  }
+  if (!found) return false;
+  stop_seek(true);
+  const size_t before = model.band;
+  model = candidate;
+  if (before != model.band) changed_configuration();
+  dirty = true;
+  return true;
+}
+void rf_remote_step(int delta) { if (!failed) { stop_seek(true); tune_by(delta); } }
+void rf_remote_band(int index) {
+  if (index < 0 || index >= RADIO_BAND_COUNT || index == (int)model.band) return;
+  if (radio_model_set_band(&model, (size_t)index)) changed_configuration();
+}
+bool rf_remote_mode(int mode) {
+  if (mode < 0 || mode > 3) return false;
+  if (radio_model_mode(&model) == (si473x_mode_t)mode) return true;
+  if (!radio_model_set_mode(&model, (si473x_mode_t)mode)) return false;
+  changed_configuration();
+  return true;
+}
+void rf_remote_step_size(int delta) { radio_model_turn_step(&model, delta); dirty = true; }
+void rf_remote_volume(int value) { volume = clamp(value, 0, 63); dirty = true; }
+void rf_remote_mute(bool value) { if (value != muted) toggle_mute(); }
+void rf_remote_seek(int direction) {
+  if (!direction) { stop_seek(true); return; }
+  if (failed || !can_seek()) return;
+  seek_mode = true;
+  request_seek(direction);
+}
+void rf_remote_notice(const char* text, uint32_t ms) {
+  snprintf(remote_notice, sizeof remote_notice, "%s", text ? text : "");
+  remote_notice_until = millis() + ms;
+  dirty = true;
+}
+void rf_remote_set_utc_offset(int16_t minutes) {
+  device_clock_set_utc_offset(&device_clock, minutes);
+  if (BOARD_HAS_RTC) store_clock();
+  dirty = true;
+}
+void rf_remote_set_clock(int64_t utc_seconds, int16_t utc_offset_minutes) {
+  device_clock_set_utc_offset(&device_clock, utc_offset_minutes);
+  device_clock_synchronize(&device_clock, utc_seconds, TIME_SOURCE_NTP, hal_monotonic_ms());
+  if (BOARD_HAS_RTC) store_clock();
+  dirty = true;
+}
+void rf_remote_switch_to_net(void) { switch_to_net(); for (;;) {} }

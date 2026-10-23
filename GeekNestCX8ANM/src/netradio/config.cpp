@@ -73,6 +73,9 @@ void net_config_load(void) {
   net_config.utc_offset = p.getShort("tz", -180);
   net_config.brightness = p.getUChar("bri", 160);
   net_config.autoplay = p.getBool("auto", true);
+  net_config.rf_wifi = p.getBool("rfwifi", true);
+  net_config.auto_update_check = p.getBool("autoupd", true);
+  net_config.favorites = p.getString("fav", "");
   p.end();
   if (net_config.volume > 21) net_config.volume = 21;
   if (net_config.brightness < 16) net_config.brightness = 16;
@@ -103,5 +106,15 @@ void net_config_save_state(void) {
   p.putShort("tz", net_config.utc_offset);
   p.putUChar("bri", net_config.brightness);
   p.putBool("auto", net_config.autoplay);
+  p.putBool("rfwifi", net_config.rf_wifi);
+  p.putBool("autoupd", net_config.auto_update_check);
+  p.end();
+}
+
+void net_config_save_favorites(void) {
+  Preferences p;
+  p.begin(NAMESPACE, false);
+  if (net_config.favorites.length() > 3800) net_config.favorites = net_config.favorites.substring(0, 3800);
+  p.putString("fav", net_config.favorites);
   p.end();
 }

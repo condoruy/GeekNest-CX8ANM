@@ -1,5 +1,6 @@
 // LovyanGFX is C++; this file is the UI's only C++ and exposes the C API in ui.h.
 #include "boards/display.hpp"
+#include "efont_latin.h"
 #include <Arduino.h>
 #include <stdlib.h>
 extern "C" {
@@ -291,14 +292,14 @@ void ui_draw(const ui_view_t* view) {
     g.clearClipRect();
   };
   if (showPs || showRt) {
-    g.setFont(&fonts::efontCN_24_b); g.setTextSize(1);
+    g.setFont(&cx8_efont_24_b); g.setTextSize(1);
     const int rowHeight = splitRds ? textHeight / 2 : textHeight;
     g.setTextSize(float(rowHeight - (splitRds ? 2 : 4)) / g.fontHeight());
     drawText(showPs ? view->ps : view->message, textTop, rowHeight, 0);
     if (splitRds) drawText(view->message, textTop + rowHeight, rowHeight, 1);
   } else {
-    g.setFont(&fonts::efontCN_24_b); g.setTextSize(1);
-    lgfx::FontMetrics metrics{}; fonts::efontCN_24_b.getDefaultMetric(&metrics);
+    g.setFont(&cx8_efont_24_b); g.setTextSize(1);
+    lgfx::FontMetrics metrics{}; cx8_efont_24_b.getDefaultMetric(&metrics);
     const float scale = float(textHeight - 4) / metrics.height;
     g.setTextSize(scale);
     const int width = g.textWidth(frequency.number);
