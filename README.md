@@ -10,9 +10,11 @@ Une dos aplicaciones en un solo binario y se pasa de una a otra manteniendo la *
 
 ## Instalar
 
-1. Descargar `CX8ANM-GeekNestV5A-v1.0.0-completo.bin` desde **Releases**.
-2. Copiarlo a la carpeta `flasheo/`, junto a los scripts.
+1. Descargar el repositorio: botón verde **Code → Download ZIP**, y descomprimirlo.
+2. Abrir la carpeta `flasheo/`: ahí están el firmware `CX8ANM-GeekNestV5A-v1.0.0-completo.bin` y los scripts.
 3. Ejecutar `1_RESPALDAR_firmware_original.bat` y después `2_INSTALAR_CX8ANM.bat`.
+
+Sin Python: con Chrome o Edge en https://espressif.github.io/esptool-js/ , grabar el `.bin` en la dirección `0x0`.
 
 Guía completa de uso, controles y configuración WiFi: [`flasheo/LEEME.txt`](flasheo/LEEME.txt).
 
