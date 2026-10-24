@@ -16,6 +16,7 @@
 #include <soc/rtc_cntl_reg.h>
 
 static hal_encoder_t encoder;
+static bool encoder_inverted = true; // CX8ANM: this unit turns the other way; NVS cx8net/encinv
 static hal_button_t button, keys[3];
 static const struct { int pin; bool pull_up; } key_pins[3] = {{PIN_KEY_A, false}, {PIN_KEY_B, true}, {PIN_KEY_C, true}};
 // Bound each bus transaction independently of the SI4732 command-level CTS deadline.
@@ -146,7 +147,8 @@ hal_battery_reading_t board_battery_read(void) {
   return reading;
 }
 
-int board_encoder_read(void) { return hal_encoder_read(&encoder); }
+int board_encoder_read(void) { const int d = hal_encoder_read(&encoder); return encoder_inverted ? -d : d; }
+void board_encoder_set_inverted(bool inverted) { encoder_inverted = inverted; }
 bool board_button_update(uint32_t now) { return hal_button_update(&button, now); }
 bool board_button_pressed(void) { return button.pressed; }
 uint8_t board_keys_read(uint32_t now, uint8_t* repeats) {

@@ -238,7 +238,10 @@ void key_input(uint32_t now) {
     if (key_a_repeats >= SWITCH_REPEATS) to_rf();
   }
   const uint8_t vol = (pressed | repeats) & (BOARD_KEY_B | BOARD_KEY_C);
-  if (vol) net_action_volume(net_config.volume + (vol & BOARD_KEY_B ? 1 : -1));
+  if (vol && overlay == OVERLAY_BROWSE && net_config.count) { // B/C move through the list
+    browse_index = ((browse_index + (vol & BOARD_KEY_B ? -1 : 1)) % net_config.count + net_config.count) % net_config.count;
+    overlay_touched = millis();
+  } else if (vol) net_action_volume(net_config.volume + (vol & BOARD_KEY_B ? 1 : -1));
 }
 void encoder_input() {
   const int delta = board_encoder_read();
@@ -378,7 +381,7 @@ String net_status_json(void) {
   j += "\"codec\":\"" + json_escape(p.codec) + "\",\"br\":" + String(p.bitrate) + ",";
   j += "\"vol\":" + String(net_config.volume) + ",\"mute\":" + String(muted ? "true" : "false") + ",";
   j += "\"bri\":" + String(net_config.brightness) + ",\"tz\":" + String(net_config.utc_offset) + ",";
-  j += "\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",";
+  j += "\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",\"encinv\":" + String(net_config.encoder_inverted ? "true" : "false") + ",";
   j += "\"bat\":" + String(battery.volts, 2) + ",\"heap\":" + String(ESP.getFreeHeap()) + ",";
   j += "\"update\":" + updater_json();
   j += "}";

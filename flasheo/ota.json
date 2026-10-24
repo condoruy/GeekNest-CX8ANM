@@ -1,7 +1,7 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "url": "https://raw.githubusercontent.com/condoruy/GeekNest-CX8ANM/main/flasheo/CX8ANM-GeekNestV5A-app.bin",
-  "size": 1426336,
-  "sha256": "cae4485721bf7f32791909f9a7e31da1c2fde2ae5e3b8906450c30563ef9a632",
-  "notes": "Cambio de modo más fácil (A o B+C 2 seg, con aviso) y la radio ya no se apaga al reiniciar a batería."
+  "size": 1426992,
+  "sha256": "c658976cfe8e50a2eb65c62b508ebd4aabd1bd1c6a79296c59ac1e56a977e23c",
+  "notes": "Perilla en el sentido correcto (ajustable en la web), lista de emisoras más ágil y teclas B/C para moverse en la lista."
 }

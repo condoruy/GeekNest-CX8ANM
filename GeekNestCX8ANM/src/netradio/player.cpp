@@ -100,7 +100,7 @@ void task(void*) {
     while (xQueueReceive(queue, &c, 0) == pdTRUE) handle(c);
     audio->loop();
     if (millis() - last_watch >= 250) { last_watch = millis(); watch(); }
-    vTaskDelay(1);
+    vTaskDelay(2);
   }
 }
 
@@ -157,8 +157,8 @@ void audio_eof_stream(const char*) { set_state(PLAYER_ERROR, "Fin de la transmis
 void player_begin(int bclk, int lrck, int dout) {
   pins[0] = bclk; pins[1] = lrck; pins[2] = dout;
   queue = xQueueCreate(4, sizeof(command_t));
-  // Core 1 next to the Arduino loop; WiFi runs on core 0.
-  xTaskCreatePinnedToCore(task, "cx8audio", 12288, nullptr, 3, nullptr, 1);
+  // Core 0 (with WiFi): the Arduino loop on core 1 keeps the knob, keys, screen and web responsive.
+  xTaskCreatePinnedToCore(task, "cx8audio", 12288, nullptr, 2, nullptr, 0);
 }
 void player_play(const char* url) {
   command_t c = {CMD_PLAY, 0, {0}};

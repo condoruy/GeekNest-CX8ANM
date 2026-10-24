@@ -51,7 +51,7 @@ String rf_status_json(void) {
   if (s.environment_valid)
     j += "\"temp\":" + String(s.temperature_milli / 1000.0f, 1) + ",\"hum\":" + String(s.humidity_milli / 1000.0f, 1) + ",";
   j += "\"tz\":" + String(net_config.utc_offset) + ",\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",";
-  j += "\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",";
+  j += "\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",\"encinv\":" + String(net_config.encoder_inverted ? "true" : "false") + ",";
   j += "\"heap\":" + String(ESP.getFreeHeap()) + ",\"bands\":[";
   for (int i = 0; i < rf_remote_band_count(); ++i) {
     bool available; uint32_t lo, hi;
@@ -64,7 +64,7 @@ String rf_status_json(void) {
 }
 
 void rfweb_begin(void) {
-  net_config_load();
+  net_config_load(); // Also applies the knob direction
   if (!net_config.rf_wifi || !net_config.ssid.length()) {
     Serial.println("CX8ANM: RF web off (disabled or no WiFi saved)");
     return;

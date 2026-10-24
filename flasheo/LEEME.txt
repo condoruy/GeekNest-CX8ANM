@@ -1,4 +1,4 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.1.1)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.1.2)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
@@ -43,7 +43,7 @@ MODO RECEPTOR RF (tinyradio)
   Tecla A 2 segundos PASA A RADIO INTERNET (o B y C juntas 2 segundos)
 
 MODO RADIO INTERNET
-  Rueda girar        abre la lista de emisoras y la recorre
+  Rueda girar        abre la lista de emisoras y la recorre (tambien B / C dentro de la lista)
   Rueda pulsar       escucha la emisora marcada (o abre la lista)
   Rueda larga        mudo / sonido
   Rueda 3 segundos   apagar
@@ -73,6 +73,9 @@ PAGINA WEB DE CONTROL (en los DOS modos, con la radio conectada a tu WiFi)
   - Cambiar la red WiFi, zona horaria y brillo
   - Pasar de un modo al otro
   - Buscar e instalar actualizaciones
+  Si la perilla gira al reves: Ajustes -> "Invertir el sentido de la perilla".
+  En Android usar la IP (http://192.168.x.x); cx8anm.local funciona en iPhone y Mac.
+  El celular tiene que estar en la MISMA red WiFi que la radio (no datos moviles).
   El WiFi en modo RF se puede apagar en Ajustes (menos ruido en onda corta debil).
   La primera vez el WiFi se configura desde el modo Radio Internet.
 

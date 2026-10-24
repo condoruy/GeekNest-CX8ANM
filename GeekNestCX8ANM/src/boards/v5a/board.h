@@ -40,6 +40,7 @@ void board_speaker_set_enabled(bool enabled);
 hal_battery_reading_t board_battery_read(void);
 
 int board_encoder_read(void);
+void board_encoder_set_inverted(bool inverted); // CX8ANM: knob direction
 bool board_button_update(uint32_t now); // Encoder push. True once per debounced press.
 bool board_button_pressed(void);
 // Side keys A/B/C. Returns the keys pressed since the last call; *repeats gets

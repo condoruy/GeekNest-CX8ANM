@@ -9,6 +9,7 @@
 extern "C" {
 #include "app/boot_mode.h"
 #include "app/rf_remote.h"
+#include "boards/board.h"
 }
 
 namespace {
@@ -94,6 +95,7 @@ label{display:block;font-size:13px;color:var(--dim);margin:8px 0 4px}label.ck{di
 <div class="net hide"><label>Brillo de pantalla</label><input type="range" min="16" max="255" id="bri" onchange="api('bri?v='+this.value)"></div>
 <label class="ck"><input type="checkbox" id="rfwifi" onchange="api('options?rfwifi='+(this.checked?1:0))"> WiFi y control web también en modo receptor RF</label>
 <p class="sm">Apagarlo reduce el ruido del WiFi cuando escuchás onda corta débil.</p>
+<label class="ck"><input type="checkbox" id="encinv" onchange="api('options?encinv='+(this.checked?1:0))"> Invertir el sentido de la perilla</label>
 <label class="ck"><input type="checkbox" id="autoupd" onchange="api('options?autoupd='+(this.checked?1:0))"> Buscar actualizaciones automáticamente</label>
 <div class="row" style="margin-top:12px"><button id="swb" onclick="switchMode()">Cambiar de modo</button></div></section>
 
@@ -174,7 +176,7 @@ async function poll(){if(busy)return;busy=true;try{const s=await (await fetch('/
   $('pp').innerHTML=(s.state=='PLAYING'||s.state=='CONNECTING')?'&#9632; Detener':'&#9654; Escuchar';$('mute').textContent=s.mute?'Activar sonido':'Silenciar';
   if(document.activeElement!=$('vol')){$('vol').value=s.vol;$('vtxt').textContent=s.vol}if(document.activeElement!=$('bri'))$('bri').value=s.bri;
   if(s.count!=L.length)loadList();else render()} else renderRF();
- if(document.activeElement!=$('tz'))$('tz').value=s.tz;$('rfwifi').checked=s.rfwifi;$('autoupd').checked=s.autoupd;
+ if(document.activeElement!=$('tz'))$('tz').value=s.tz;$('rfwifi').checked=s.rfwifi;$('autoupd').checked=s.autoupd;$('encinv').checked=s.encinv;
  const u=s.update;$('upd').classList.toggle('hide',!(u.available||u.installing));$('updv').textContent='Versión '+u.latest;$('updn').textContent=u.notes||'';
  if(u.installing){$('updbar').classList.remove('hide');$('updp').style.width=Math.max(0,u.progress)+'%';$('upds').textContent='Instalando '+Math.max(0,u.progress)+'%...';$('updb').disabled=true}
  else if(u.error&&u.available)$('upds').textContent=u.error;
@@ -259,6 +261,10 @@ void handle_timezone() {
 void handle_options() {
   if (server.hasArg("rfwifi")) net_config.rf_wifi = arg_int("rfwifi", 1) != 0;
   if (server.hasArg("autoupd")) net_config.auto_update_check = arg_int("autoupd", 1) != 0;
+  if (server.hasArg("encinv")) {
+    net_config.encoder_inverted = arg_int("encinv", 1) != 0;
+    board_encoder_set_inverted(net_config.encoder_inverted);
+  }
   net_config_save_state();
   send_text(200, !is_net() && !net_config.rf_wifi ? "Se apagará el WiFi del modo RF al reiniciar" : "ok");
 }

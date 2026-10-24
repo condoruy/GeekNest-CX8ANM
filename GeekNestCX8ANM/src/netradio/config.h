@@ -19,6 +19,7 @@ struct net_config_t {
   bool autoplay = true;       // Resume the last station at boot
   bool rf_wifi = true;        // WiFi + web control while in receiver (RF) mode
   bool auto_update_check = true;
+  bool encoder_inverted = true; // Knob direction (this V5A turns the other way)
   String favorites;           // RF favorites, "Name|Hz|MODE" lines (parsed by the web page)
 };
 
