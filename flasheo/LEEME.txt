@@ -1,4 +1,4 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.1.2)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.1.3)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
@@ -88,13 +88,21 @@ ACTUALIZAR EL FIRMWARE POR WIFI (desde v1.1.0)
   - Tambien se puede subir a mano el archivo CX8ANM-GeekNestV5A-app.bin desde la web.
   - Si algo falla, la radio sigue con la version anterior.
 
+EN MAC
+  Carpeta mac/: los mismos pasos con archivos .command (clic derecho -> Abrir la primera vez).
+  4_GUARDAR_REGISTRO.command guarda en registro.txt lo que informa la radio, para diagnosticar fallas.
+
 PASAR DE v1.0.0 A v1.1.0
   La v1.1.0 cambia la organizacion de la memoria (para poder actualizar por WiFi),
   asi que esta UNA vez hay que grabarla por cable con 2_INSTALAR_CX8ANM.bat.
   Despues, las siguientes versiones se instalan por WiFi.
 
 EMISORAS INCLUIDAS (editables desde la web)
-  El Espectador 810, Radio Carve 850, Sarandi 690, Del Sol FM, Oceano FM, FM Hit 90.3
+  Uruguay: El Espectador 810, Radio Carve 850, Sarandi 690, En Perspectiva (Radiomundo 1170),
+           la diaria Radio, Del Sol FM, Oceano FM, FM Hit 90.3
+  Noticias en espanol: Radio Mitre 790 (Argentina), Radio Cooperativa, Radio Bio-Bio y ADN Radio (Chile)
+  Hay que poner la direccion del STREAM de audio (termina en .mp3, .aac, /stream, /; ...),
+  no la pagina web de la radio. Las radios que solo transmiten en HLS (.m3u8) no funcionan.
   Las URL de las radios cambian con el tiempo: si una deja de andar, se corrige en la web.
 
 RELOJ

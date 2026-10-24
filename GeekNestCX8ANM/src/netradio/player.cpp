@@ -90,7 +90,7 @@ void watch(void) {
 
 void task(void*) {
   audio = new Audio(false, 3, I2S_NUM_0);
-  audio->setBufsize(28 * 1024, -1); // No PSRAM on this build: keep the stream buffer in internal RAM.
+  audio->setBufsize(16 * 1024, -1); // No PSRAM on this build: keep the stream buffer in internal RAM.
   audio->setPinout(pins[0], pins[1], pins[2]);
   audio->setConnectionTimeout(5000, 8000);
   audio->setVolume(10);
@@ -150,6 +150,9 @@ void audio_showstreamtitle(const char* info) {
 }
 void audio_info(const char* info) {
   if (strstr(info, "stream ready") || strstr(info, "syncword found")) stream_ready = true;
+  // A web page instead of an audio stream (e.g. the station's site) or an HLS playlist.
+  if (strstr(info, "text/html")) set_state(PLAYER_ERROR, "Es una pagina web, no un stream");
+  else if (strstr(info, "mpegurl") || strstr(info, ".m3u8")) set_state(PLAYER_ERROR, "Formato HLS no soportado");
   Serial.printf("audio: %s\n", info);
 }
 void audio_eof_stream(const char*) { set_state(PLAYER_ERROR, "Fin de la transmision"); }

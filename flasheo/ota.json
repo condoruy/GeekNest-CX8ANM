@@ -1,7 +1,7 @@
 {
-  "version": "1.1.2",
+  "version": "1.1.3",
   "url": "https://raw.githubusercontent.com/condoruy/GeekNest-CX8ANM/main/flasheo/CX8ANM-GeekNestV5A-app.bin",
-  "size": 1426992,
-  "sha256": "c658976cfe8e50a2eb65c62b508ebd4aabd1bd1c6a79296c59ac1e56a977e23c",
-  "notes": "Perilla en el sentido correcto (ajustable en la web), lista de emisoras más ágil y teclas B/C para moverse en la lista."
+  "size": 1428736,
+  "sha256": "13b264500d62af11686e75f79c92eb1f12def73188e437fc65d3ba8ecfcd890b",
+  "notes": "Más estable con la página web abierta (memoria), avisa si una dirección es página web o HLS, y suma radios de noticias en español."
 }

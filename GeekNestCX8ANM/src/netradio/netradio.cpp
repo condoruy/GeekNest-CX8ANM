@@ -308,7 +308,7 @@ void draw(uint32_t now) {
     v.info_lines[0] = "Red: " + WiFi.SSID() + "  (" + String(WiFi.RSSI()) + " dBm)";
     v.info_lines[1] = "IP: " + WiFi.localIP().toString() + "   cx8anm.local";
     v.info_lines[2] = "Batería: " + String(battery.volts, 2) + " V";
-    v.info_lines[3] = "Memoria libre: " + String(ESP.getFreeHeap() / 1024) + " KB";
+    v.info_lines[3] = "Memoria libre: " + String(ESP.getFreeHeap() / 1024) + " KB (min " + String(ESP.getMinFreeHeap() / 1024) + ")";
     v.info_lines[4] = "Rueda: elegir emisora - pulsar: escuchar";
     v.info_lines[5] = "B/C: volumen - rueda larga: mudo - 3 s: apagar";
     v.info_lines[6] = "A 2 seg: receptor RF - firmware " CX8_FIRMWARE_VERSION;
@@ -479,6 +479,12 @@ void netradio_update(void) {
   if (!clock_stored && ntp_synced) store_clock_for_receiver();
   if (state_dirty && now - state_changed > 3000) save_now();
   if (now - last_battery >= 5000) { last_battery = now; battery = board_battery_read(); }
+  static uint32_t last_heap_log = 0;
+  if (now - last_heap_log >= 10000) {
+    last_heap_log = now;
+    Serial.printf("CX8ANM: heap libre=%u minimo=%u bloque=%u wifi=%d\n", ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                  ESP.getMaxAllocHeap(), WiFi.status() == WL_CONNECTED);
+  }
   if (now - last_draw >= 100) { last_draw = now; draw(now); }
   delay(2);
 }

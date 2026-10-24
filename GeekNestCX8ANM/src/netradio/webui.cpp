@@ -182,7 +182,7 @@ async function poll(){if(busy)return;busy=true;try{const s=await (await fetch('/
  else if(u.error&&u.available)$('upds').textContent=u.error;
  $('fw').textContent='Versión instalada: '+u.current+(u.checked?(u.available?' - nueva: '+u.latest:' - al día'):'');
  $('sys').textContent='Batería '+s.bat+' V - memoria libre '+Math.round(s.heap/1024)+' KB'}catch(e){$('net').textContent='sin conexión'}busy=false}
-poll();setInterval(poll,2000);
+poll();setInterval(poll,3000);
 </script></body></html>)HTML";
 
 void send_text(int code, const String& text) { server.send(code, "text/plain; charset=utf-8", text); }
@@ -194,7 +194,15 @@ bool require(bool net) {
   return false;
 }
 
+// With an HTTPS stream playing, internal RAM is tight (no PSRAM): refuse
+// politely instead of letting the network stack run out of memory.
+bool low_memory() {
+  if (ESP.getFreeHeap() >= 22000 && ESP.getMaxAllocHeap() >= 12000) return false;
+  server.send(503, "text/plain; charset=utf-8", "Memoria baja, reintentá en unos segundos");
+  return true;
+}
 void handle_root() {
+  if (low_memory()) return;
   server.sendHeader("Cache-Control", "no-store");
   server.send_P(200, "text/html; charset=utf-8", PAGE);
 }
@@ -321,7 +329,7 @@ void webui_begin(bool captive_portal, webui_mode_t web_mode) {
   mode = web_mode;
   if (captive) dns.start(53, "*", WiFi.softAPIP());
   server.on("/", HTTP_GET, handle_root);
-  server.on("/api/status", HTTP_GET, [] { server.send(200, "application/json", is_net() ? net_status_json() : rf_status_json()); });
+  server.on("/api/status", HTTP_GET, [] { if (low_memory()) return; server.send(200, "application/json", is_net() ? net_status_json() : rf_status_json()); });
   // Internet radio
   server.on("/api/stations", HTTP_GET, [] { send_text(200, net_config_stations_text()); });
   server.on("/api/stations", HTTP_POST, handle_stations_post);
