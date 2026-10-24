@@ -227,7 +227,7 @@ void handle_wifi() {
   if (is_net()) net_action_wifi_saved();
   cx8_message("WiFi guardado", "Reiniciando...");
   delay(300);
-  ESP.restart();
+  boot_mode_restart();
 }
 void handle_stations_post() {
   if (!require(true)) return;
@@ -290,7 +290,7 @@ void handle_upload_done() {
   delay(500);
   cx8_message("Firmware instalado", "Reiniciando...");
   delay(300);
-  ESP.restart();
+  boot_mode_restart();
 }
 void handle_upload_data() {
   HTTPUpload& up = server.upload();

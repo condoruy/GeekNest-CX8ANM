@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "url": "https://raw.githubusercontent.com/condoruy/GeekNest-CX8ANM/main/flasheo/CX8ANM-GeekNestV5A-app.bin",
-  "size": 1426272,
-  "sha256": "ed74ee8318b6fa2476a4e50dbd8ba1347489eabd7bd3c7d247f783c9a5cb456f",
-  "notes": "Control web en modo receptor RF, favoritos, actualizacion desde GitHub y fuentes con acentos y ñ."
+  "size": 1426336,
+  "sha256": "cae4485721bf7f32791909f9a7e31da1c2fde2ae5e3b8906450c30563ef9a632",
+  "notes": "Cambio de modo más fácil (A o B+C 2 seg, con aviso) y la radio ya no se apaga al reiniciar a batería."
 }

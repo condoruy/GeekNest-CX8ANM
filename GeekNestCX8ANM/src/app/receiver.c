@@ -342,9 +342,16 @@ static void key_input(uint32_t now) {
   uint8_t repeats;
   const uint8_t pressed = board_keys_read(now, &repeats);
   const uint8_t volume_keys = (pressed | repeats) & (BOARD_KEY_B | BOARD_KEY_C);
+  // A held, or B and C held together, for about 2 s switches to internet radio.
+  const bool both = (repeats & BOARD_KEY_B) && (repeats & BOARD_KEY_C);
   if (pressed & BOARD_KEY_A) { short_press(); key_a_repeats = 0; }
-  if (repeats & BOARD_KEY_A) { if (++key_a_repeats >= SWITCH_REPEATS) switch_to_net(); }
-  if (volume_keys) { volume = clamp(volume + (volume_keys & BOARD_KEY_B ? 2 : -2), 0, 63); dirty = true; }
+  if (pressed & (BOARD_KEY_B | BOARD_KEY_C)) key_a_repeats = 0;
+  if ((repeats & BOARD_KEY_A) || both) {
+    ++key_a_repeats;
+    if (key_a_repeats == 3) rf_remote_notice("Hold for Internet radio...", 2000);
+    if (key_a_repeats >= SWITCH_REPEATS) switch_to_net();
+  }
+  if (volume_keys && !both) { volume = clamp(volume + (volume_keys & BOARD_KEY_B ? 2 : -2), 0, 63); dirty = true; }
 }
 #if BOARD_CAN_POWER_OFF
 static void power_off(void) {

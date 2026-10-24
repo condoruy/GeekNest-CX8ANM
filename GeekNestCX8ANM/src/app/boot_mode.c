@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include <driver/gpio.h>
 
 static const char NAMESPACE[] = "cx8anm";
 static const char KEY[] = "bootmode";
@@ -25,8 +26,15 @@ void boot_mode_set(boot_mode_t mode) {
   nvs_commit(handle);
   nvs_close(handle);
 }
-void boot_mode_switch(boot_mode_t mode) {
-  boot_mode_set(mode);
+void boot_mode_restart(void) {
+  // V5A power latch (GPIO4): keep it high through the reset, otherwise a
+  // battery-powered radio switches itself off instead of restarting.
+  // take_power_latch() releases the hold on the next boot.
+  gpio_hold_en(GPIO_NUM_4);
   vTaskDelay(pdMS_TO_TICKS(50));
   esp_restart();
+}
+void boot_mode_switch(boot_mode_t mode) {
+  boot_mode_set(mode);
+  boot_mode_restart();
 }

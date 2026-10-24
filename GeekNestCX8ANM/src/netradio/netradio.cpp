@@ -174,11 +174,11 @@ void progress_screen(int percent) { screen_progress("Actualizando firmware", per
   if (updater_install(progress_screen)) {
     cx8_message("Firmware actualizado", ("Version " + updater.latest + " - reiniciando...").c_str());
     delay(1500);
-    ESP.restart();
+    boot_mode_restart();
   }
   cx8_message("No se pudo actualizar", updater.error.c_str());
   delay(4000);
-  ESP.restart(); // Back to a clean state with the current firmware
+  boot_mode_restart(); // Back to a clean state with the current firmware
 }
 
 // --- Input ------------------------------------------------------------------
@@ -195,7 +195,7 @@ void choose_browsed() {
 }
 void short_press() {
   if (phase == PHASE_ACCESS_POINT) {
-    if (net_config.ssid.length()) { cx8_message("Reintentando WiFi", net_config.ssid.c_str()); delay(400); ESP.restart(); }
+    if (net_config.ssid.length()) { cx8_message("Reintentando WiFi", net_config.ssid.c_str()); delay(400); boot_mode_restart(); }
     return;
   }
   if (phase != PHASE_ONLINE) return;
@@ -356,7 +356,7 @@ void net_action_wifi_saved(void) {
   shutdown_audio();
   cx8_message("WiFi guardado", "Reiniciando para conectar...");
   delay(500);
-  ESP.restart();
+  boot_mode_restart();
 }
 void net_action_switch_rf(void) { to_rf(); }
 void net_action_update_start(void) { install_requested = true; }

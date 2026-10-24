@@ -39,6 +39,9 @@ static void take_power_latch(void) {
   // the latch before it is taken. The vendor V5A firmware disables it too.
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
   // Wake from deep sleep leaves these pads in RTC mode.
+  // Drive high before releasing a hold kept through a CX8ANM restart, so the latch never drops.
+  digitalWrite(PIN_POWER_HOLD, HIGH);
+  pinMode(PIN_POWER_HOLD, OUTPUT);
   rtc_gpio_hold_dis(PIN_POWER_HOLD);
   rtc_gpio_deinit(PIN_POWER_HOLD);
   digitalWrite(PIN_POWER_HOLD, HIGH);

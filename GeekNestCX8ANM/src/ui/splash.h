@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #define CX8_FIRMWARE_NAME "CX8ANM"
-#define CX8_FIRMWARE_VERSION "1.1.0"
+#define CX8_FIRMWARE_VERSION "1.1.1"
 #ifdef __cplusplus
 extern "C" {
 #endif

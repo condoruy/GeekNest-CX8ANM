@@ -1,4 +1,4 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.1.0)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.1.1)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
@@ -9,6 +9,11 @@ CONTENIDO
   1_RESPALDAR_firmware_original.bat        copia el firmware de fabrica (HACERLO PRIMERO)
   2_INSTALAR_CX8ANM.bat                    graba el firmware CX8ANM
   3_RESTAURAR_firmware_original.bat        vuelve al firmware de fabrica
+
+GRABAR LA RADIO (placa V1.0.12 o posterior)
+  Durante TODO el respaldo y la grabacion hay que mantener APRETADA la rueda (encoder),
+  con la radio encendida y el USB conectado. Si se suelta, la radio se apaga y esptool
+  muestra "No serial data received". Sirve sujetarla con una gomita.
 
 INSTALACION (Windows)
   1. Instalar Python 3 desde https://www.python.org (marcar "Add Python to PATH").
@@ -35,7 +40,7 @@ MODO RECEPTOR RF (tinyradio)
   Rueda 3 segundos   apagar (soltar cuando lo indica)
   Tecla B / C        volumen + / -
   Tecla A            igual que pulsar la rueda
-  Tecla A 2 segundos PASA A RADIO INTERNET
+  Tecla A 2 segundos PASA A RADIO INTERNET (o B y C juntas 2 segundos)
 
 MODO RADIO INTERNET
   Rueda girar        abre la lista de emisoras y la recorre
