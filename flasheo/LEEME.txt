@@ -1,10 +1,11 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.2.0)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.3.0)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
 CONTENIDO
   CX8ANM-GeekNestV5A-completo.bin          firmware completo, se graba por cable en la direccion 0x0
   CX8ANM-GeekNestV5A-app.bin               solo la aplicacion, para actualizar por WiFi desde la web
+  CX8ANM-GeekNestV5A-bt.bin                modo Bluetooth (se descarga solo; o subirlo a mano en la web)
   ota.json                                 version publicada (la radio lo consulta para actualizarse)
   1_RESPALDAR_firmware_original.bat        copia el firmware de fabrica (HACERLO PRIMERO)
   2_INSTALAR_CX8ANM.bat                    graba el firmware CX8ANM
@@ -104,6 +105,28 @@ EMISORAS INCLUIDAS (editables desde la web)
   Hay que poner la direccion del STREAM de audio (termina en .mp3, .aac, /stream, /; ...),
   no la pagina web de la radio. Las radios que solo transmiten en HLS (.m3u8) no funcionan.
   Las URL de las radios cambian con el tiempo: si una deja de andar, se corrige en la web.
+
+CAMBIAR DE MODO (desde v1.3.0)
+  Tecla A 2 segundos      Receptor RF <-> Radio Internet
+  Teclas B y C juntas 2 s modo Bluetooth (desde el receptor o desde Radio Internet)
+  Tambien desde la pagina web (botones de modo).
+
+MODO BLUETOOTH (desde v1.3.0)
+  Es un firmware aparte que se guarda en la segunda mitad de la memoria.
+  La primera vez que lo elegis se descarga solo de GitHub por WiFi (unos 1,3 MB, 1 minuto).
+  Despues de cada actualizacion del firmware principal se vuelve a descargar solo.
+  PARLANTE BLUETOOTH (llave del parlante en DIGITAL)
+    En el celular, Bluetooth -> conectar "CX8ANM-Radio".
+    Rueda girar: volumen  -  Rueda pulsar: pausa/play  -  Rueda larga: mudo
+    B / C: tema anterior / siguiente
+    A corto: pasa a Transmisor  -  A 2 s: receptor RF  -  B+C 2 s: Radio Internet
+    Rueda 3 s: apagar (al volver a prender arranca en el receptor RF)
+  TRANSMISOR BLUETOOTH (experimental)
+    El audio del receptor RF sale por tus auriculares o parlante Bluetooth.
+    Pone los auriculares en modo emparejar: la radio se conecta al primero que encuentra
+    y despues lo recuerda. El parlante de la radio queda apagado.
+    Calidad: mono y algo de ruido (el audio entra por una entrada analogica de baja calidad).
+    El receptor se maneja igual que siempre.  A 2 s: receptor RF normal  -  B+C 2 s: Parlante BT
 
 AHORRO DE BATERIA (desde v1.2.0, se ajusta en la web -> Ajustes -> Bateria)
   - La pantalla se atenua a los 30 s y se apaga a los 2 min sin tocar nada.

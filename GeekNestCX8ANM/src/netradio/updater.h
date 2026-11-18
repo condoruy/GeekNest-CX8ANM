@@ -15,6 +15,8 @@ struct updater_state_t {
   String latest;          // Version in the manifest
   String notes;
   String url, sha256;
+  String bt_url, bt_sha256;  // Bluetooth image published with this version
+  uint32_t bt_size = 0;
   uint32_t size = 0;
   String error;
   uint32_t checked_at = 0;
@@ -28,6 +30,13 @@ bool updater_check_async(void);
 // Downloads and installs the version found by the last check; blocking.
 // progress(percent) is called while writing. On success the caller restarts.
 bool updater_install(void (*progress)(int percent));
+// Downloads the Bluetooth image into the other OTA slot (the boot slot is not
+// changed) and records it. Needs a finished check (bt_url). Blocking.
+bool updater_install_bt(void (*progress)(int percent));
+// Web upload of the Bluetooth image (CX8ANM-GeekNestV5A-bt.bin).
+void updater_bt_upload_begin(void);
+void updater_bt_upload_write(const uint8_t* data, size_t size);
+bool updater_bt_upload_end(String* error);
 // Pending install across a restart (RF mode hands the update to the internet mode).
 void updater_set_pending(bool pending);
 bool updater_take_pending(void);

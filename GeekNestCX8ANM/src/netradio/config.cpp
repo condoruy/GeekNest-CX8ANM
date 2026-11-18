@@ -1,3 +1,4 @@
+#ifndef CX8_BT_FIRMWARE // Main image only (the Bluetooth image has no WiFi)
 #include "config.h"
 #include <Preferences.h>
 extern "C" {
@@ -157,3 +158,5 @@ void net_config_save_favorites(void) {
   p.putString("fav", net_config.favorites);
   p.end();
 }
+
+#endif // CX8_BT_FIRMWARE

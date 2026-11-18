@@ -8,6 +8,8 @@ Une dos aplicaciones en un solo firmware; se pasa de una a otra con la **tecla A
 | Receptor RF | [tinyradio](https://github.com/lsongdev/tinyradio) (lsongdev, MIT) | LW/MW/SW/VHF/AIR, AM/FM/SSB, RDS, espectro, RTC, sensor |
 | Radio Internet | Código propio CX8ANM + [ESP32-audioI2S 2.0.6](https://github.com/schreibfaul1/ESP32-audioI2S) | MP3/AAC por WiFi, hasta 40 emisoras, NTP → RTC |
 
+| Bluetooth (imagen aparte) | [ESP32-A2DP 1.8.4](https://github.com/pschatzmann/ESP32-A2DP) | Parlante Bluetooth y transmisor del receptor RF a auriculares |
+
 **Página web** en `http://cx8anm.local`, en los dos modos:
 - Radio Internet: qué suena, emisoras, volumen.
 - Receptor RF: frecuencia, banda, modo, señal, RDS y favoritos.
@@ -63,6 +65,15 @@ libraries/
   (LovyanGFX 1.2.7: instalar aparte)
 flasheo/                    imágenes, ota.json, scripts y LEEME
 ```
+
+## Imagen Bluetooth
+
+El Bluetooth clásico ocupa 1,1 MB y no entra junto al WiFi en una misma imagen con dos slots OTA de 1,875 MB. Por eso se compila una **segunda imagen** (`-DCX8_BT_FIRMWARE`, `build_bt.sh`) que se guarda en el slot OTA libre:
+
+- El firmware principal la descarga (`bt_url` en `ota.json`) con `esp_ota_*`, **sin cambiar** la partición de arranque, y guarda su SHA-256 en NVS (`cx8anm/btsha`).
+- Para entrar al modo Bluetooth se marca ese slot como arranque. Desde la imagen BT, cualquier salida o apagado vuelve a marcar el slot principal (`cx8anm/mainpart`).
+- Cada actualización del firmware principal pisa la imagen BT (`boot_mode_bt_clear`), y la próxima vez se vuelve a descargar.
+- El transmisor captura el audio del SI4732 por el ADC (16 kHz mono, GPIO34), lo remuestrea a 44,1 kHz y lo envía por A2DP source.
 
 ## Decisiones de hardware
 

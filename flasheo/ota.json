@@ -1,7 +1,10 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "url": "https://raw.githubusercontent.com/condoruy/GeekNest-CX8ANM/main/flasheo/CX8ANM-GeekNestV5A-app.bin",
-  "size": 1434000,
-  "sha256": "3f451d9befeeadef2dd0e4dbb06c649cd7941022ef513e55119c38d9ddcb36cd",
-  "notes": "Ahorro de batería: pantalla que se atenúa y apaga sola, procesador a 80 MHz, amplificador apagado en silencio, WiFi del modo RF con apagado automático, temporizador de apagado y protección por batería baja."
+  "size": 1444160,
+  "sha256": "142bca7ac29bd1254a41d77ab4b46d39956fe07d90399eda743e6252a7b649bf",
+  "bt_url": "https://raw.githubusercontent.com/condoruy/GeekNest-CX8ANM/main/flasheo/CX8ANM-GeekNestV5A-bt.bin",
+  "bt_size": 1343200,
+  "bt_sha256": "61d834aa96563d890a906453638c34c1a0e2c78902e58a8855131c0a61c0db06",
+  "notes": "Modo Bluetooth: parlante y transmisor del receptor RF a auriculares. Ahorro de batería. Actualización sin problemas de memoria."
 }

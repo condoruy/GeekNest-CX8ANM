@@ -1,3 +1,6 @@
+#include <string.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "board.h"
 #include "pins.h"
 #include "drivers/pcf8523/pcf8523.h"
@@ -70,14 +73,85 @@ static void audio_begin(void) {
   }
   audio_sampling = true; audio_discard = true;
 }
-static void audio_pause(void) { if (audio_sampling) i2s_adc_disable(I2S_NUM_0); }
+// CX8ANM Bluetooth transmitter: a task captures the receiver audio without
+// gaps; the spectrum then reads a copy of the latest block.
+static SemaphoreHandle_t audio_lock = NULL;
+static volatile bool audio_streaming = false;
+enum { STREAM_RING = 4096 };
+static int16_t stream_ring[STREAM_RING];
+static volatile uint32_t stream_head = 0, stream_tail = 0;
+static uint16_t latest_block[AUDIO_BLOCK];
+static volatile bool latest_fresh = false;
+static bool speaker_locked_off = false;
+
+static void audio_pause(void) {
+  if (!audio_sampling) return;
+  if (audio_lock) xSemaphoreTake(audio_lock, portMAX_DELAY);
+  i2s_adc_disable(I2S_NUM_0);
+  if (audio_lock) xSemaphoreGive(audio_lock);
+}
 static void audio_resume(void) {
   if (!audio_sampling) return;
+  if (audio_lock) xSemaphoreTake(audio_lock, portMAX_DELAY);
   i2s_set_adc_mode(ADC_UNIT_1, ADC1_CHANNEL_6);
   i2s_adc_enable(I2S_NUM_0);
   audio_discard = true; // The first block after resuming mixes channels.
+  if (audio_lock) xSemaphoreGive(audio_lock);
+}
+static void audio_stream_task(void* arg) {
+  (void)arg;
+  uint16_t block[AUDIO_BLOCK];
+  int32_t prev_in = 0, prev_out = 0;
+  for (;;) {
+    size_t bytes = 0;
+    xSemaphoreTake(audio_lock, portMAX_DELAY);
+    const esp_err_t err = i2s_read(I2S_NUM_0, block, sizeof block, &bytes, pdMS_TO_TICKS(40));
+    const bool discard = audio_discard;
+    audio_discard = false;
+    xSemaphoreGive(audio_lock);
+    if (err != ESP_OK || bytes != sizeof block || discard) { vTaskDelay(1); continue; }
+    for (int i = 0; i < AUDIO_BLOCK; ++i) {
+      block[i] &= 0x0FFF;
+      // DC blocker (high-pass about 20 Hz) and gain to 16-bit.
+      const int32_t x = ((int32_t)block[i] - 2048) << 4;
+      const int32_t y = x - prev_in + (prev_out * 1016 >> 10);
+      prev_in = x; prev_out = y;
+      int32_t v = y * 2;
+      if (v > 32767) v = 32767; else if (v < -32768) v = -32768;
+      const uint32_t next = (stream_head + 1) % STREAM_RING;
+      if (next != stream_tail) { stream_ring[stream_head] = (int16_t)v; stream_head = next; }
+    }
+    memcpy(latest_block, block, sizeof block);
+    latest_fresh = true;
+  }
+}
+bool board_audio_stream_begin(void) {
+  if (!audio_sampling || audio_streaming) return audio_streaming;
+  audio_lock = xSemaphoreCreateMutex();
+  if (!audio_lock) return false;
+  audio_streaming = true;
+  return xTaskCreatePinnedToCore(audio_stream_task, "cx8adc", 3072, NULL, 4, NULL, 1) == pdPASS;
+}
+size_t board_audio_stream_available(void) { return (stream_head + STREAM_RING - stream_tail) % STREAM_RING; }
+size_t board_audio_stream_read(int16_t* out, size_t max) {
+  size_t n = 0;
+  while (n < max && stream_tail != stream_head) { out[n++] = stream_ring[stream_tail]; stream_tail = (stream_tail + 1) % STREAM_RING; }
+  return n;
+}
+void board_audio_stream_skip(size_t count) {
+  while (count-- && stream_tail != stream_head) stream_tail = (stream_tail + 1) % STREAM_RING;
+}
+void board_speaker_lock_off(bool locked) {
+  speaker_locked_off = locked;
+  if (locked) xl9555_set_outputs(&expander, 1, EXPANDER_AMP_SHUTDOWN, EXPANDER_AMP_SHUTDOWN);
 }
 bool board_audio_read(uint16_t* samples, size_t count) {
+  if (audio_streaming) {
+    if (!latest_fresh || count > AUDIO_BLOCK) return false;
+    memcpy(samples, latest_block, count * sizeof *samples);
+    latest_fresh = false;
+    return true;
+  }
   size_t bytes = 0;
   if (!audio_sampling || count > AUDIO_BLOCK ||
       i2s_read(I2S_NUM_0, samples, count * sizeof *samples, &bytes, 0) != ESP_OK || bytes != count * sizeof *samples)
@@ -128,6 +202,7 @@ void board_begin_net(void) {
 
 void board_audio_set_muted(bool muted) { (void)muted; }
 void board_speaker_set_enabled(bool enabled) {
+  if (speaker_locked_off) enabled = false; // Bluetooth transmitter: audio goes to the headphones only
   // Select the analog route before releasing SHUTDOWN; shut down before anything else on disable.
   if (enabled) xl9555_set_outputs(&expander, 1, EXPANDER_ANALOG_AUDIO, EXPANDER_ANALOG_AUDIO);
   xl9555_set_outputs(&expander, 1, EXPANDER_AMP_SHUTDOWN, enabled ? 0 : EXPANDER_AMP_SHUTDOWN);

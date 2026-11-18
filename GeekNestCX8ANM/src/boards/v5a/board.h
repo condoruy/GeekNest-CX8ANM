@@ -36,6 +36,13 @@ void board_display_sleep(void);
 // must also mute the SI4732. The amplifier is switched through the XL9555.
 void board_audio_set_muted(bool muted);
 void board_speaker_set_enabled(bool enabled);
+// CX8ANM Bluetooth transmitter: continuous capture of the receiver audio
+// (16 kHz mono, centered 16-bit) and speaker kept off.
+bool board_audio_stream_begin(void);
+size_t board_audio_stream_available(void);
+size_t board_audio_stream_read(int16_t* out, size_t max);
+void board_audio_stream_skip(size_t count);
+void board_speaker_lock_off(bool locked);
 
 hal_battery_reading_t board_battery_read(void);
 

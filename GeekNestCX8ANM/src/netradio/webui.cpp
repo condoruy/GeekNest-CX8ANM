@@ -1,3 +1,4 @@
+#ifndef CX8_BT_FIRMWARE // Main image only (the Bluetooth image has no WiFi)
 #include "webui.h"
 #include "actions.h"
 #include "config.h"
@@ -10,6 +11,7 @@ extern "C" {
 #include "app/boot_mode.h"
 #include "app/rf_remote.h"
 #include "app/power.h"
+#include "app/boot_mode.h"
 #include "boards/board.h"
 }
 
@@ -107,6 +109,15 @@ label{display:block;font-size:13px;color:var(--dim);margin:8px 0 4px}label.ck{di
 <label class="ck"><input type="checkbox" id="autoupd" onchange="api('options?autoupd='+(this.checked?1:0))"> Buscar actualizaciones automáticamente</label>
 <div class="row" style="margin-top:12px"><button id="swb" onclick="switchMode()">Cambiar de modo</button></div></section>
 
+<section><h2>Bluetooth</h2>
+<div class="sm" id="btst">-</div>
+<div class="row" style="margin-top:8px"><button class="p" onclick="goBt(0)">Parlante Bluetooth</button><button onclick="goBt(1)">Transmisor Bluetooth</button></div>
+<p class="sm"><b>Parlante:</b> el celular reproduce por la radio (buscá "CX8ANM-Radio"; llave del parlante en Digital).
+<b>Transmisor:</b> el receptor RF suena en tus auriculares o parlante Bluetooth (ponelos en modo emparejar). Calidad mono, experimental.
+La primera vez se descarga de GitHub (unos 1,3 MB). En la radio: B y C juntas 2 segundos.</p>
+<label>Instalar a mano (CX8ANM-GeekNestV5A-bt.bin)</label><div class="row"><input type="file" id="btbin" accept=".bin" style="flex:1"><button onclick="uploadBt()">Subir</button></div>
+<div class="bar hide" id="btbar"><i id="btp"></i></div></section>
+
 <section><h2>Firmware</h2>
 <div class="sm" id="fw"></div>
 <div class="row" style="margin-top:8px"><button onclick="checkUpdate()">Buscar actualización en GitHub</button><span class="sm" id="chk"></span></div>
@@ -166,9 +177,12 @@ async function saveWifi(){const s=$('ssid').value.trim();if(!s){toast('Falta la 
  const f=new URLSearchParams();f.set('ssid',s);f.set('pass',$('pass').value);await fetch('/api/wifi',{method:'POST',body:f});toast('Guardado, reiniciando...')}
 for(let m=-720;m<=840;m+=30){const o=document.createElement('option');o.value=m;const h=Math.trunc(Math.abs(m)/60),mm=Math.abs(m)%60;o.textContent='UTC'+(m<0?'-':'+')+h+(mm?':'+mm:'');$('tz').appendChild(o)}
 function switchMode(){const to=S.mode=='rf'?'net':'rf';if(confirm(to=='rf'?'¿Pasar al receptor RF?':'¿Pasar a Radio Internet?'))api('mode?to='+to)}
-async function checkUpdate(){$('chk').textContent='consultando GitHub...';await api('update/check');let n=0;const t=setInterval(async()=>{await poll();if(!S.update.checking||++n>20){clearInterval(t);
+async function checkUpdate(){$('chk').textContent='consultando GitHub...';const r=await api('update/check');if(r&&r!='ok'){$('chk').textContent=r;toast(r);return}let n=0;const t=setInterval(async()=>{await poll();if(!S.update.checking||++n>20){clearInterval(t);
  $('chk').textContent=S.update.error?S.update.error:(S.update.available?'Hay una versión nueva: '+S.update.latest:'Ya tenés la última versión ('+S.update.current+')')}},1500)}
 function startUpdate(){if(!confirm('¿Instalar la versión '+S.update.latest+'? La radio se reinicia sola al terminar.'))return;api('update/start');$('upds').textContent='Descargando... no apagues la radio';$('updbar').classList.remove('hide')}
+function goBt(sub){const u=S.update||{};if(!confirm(u.bt_installed?'¿Pasar al modo Bluetooth?':'El modo Bluetooth se descarga de GitHub y la radio se reinicia. ¿Seguir?'))return;api('bt/go?sub='+sub);toast(u.bt_installed?'Reiniciando en Bluetooth...':'Descargando modo Bluetooth...')}
+function uploadBt(){const f=$('btbin').files[0];if(!f){toast('Elegí el archivo -bt.bin');return}const x=new XMLHttpRequest();const fd=new FormData();fd.append('firmware',f,f.name);$('btbar').classList.remove('hide');
+ x.upload.onprogress=e=>{if(e.lengthComputable)$('btp').style.width=(e.loaded*100/e.total)+'%'};x.onload=()=>{toast(x.status==200?'Modo Bluetooth instalado':(x.responseText||'Error'));poll()};x.onerror=()=>toast('Se cortó la conexión');x.open('POST','/api/bt/upload');x.send(fd)}
 function upload(){const f=$('bin').files[0];if(!f){toast('Elegí el archivo .bin');return}if(!/app\.bin$/i.test(f.name)&&!confirm('El archivo no termina en -app.bin. ¿Seguro?'))return;
  const x=new XMLHttpRequest();const fd=new FormData();fd.append('firmware',f,f.name);$('upbar').classList.remove('hide');
  x.upload.onprogress=e=>{if(e.lengthComputable)$('upp').style.width=(e.loaded*100/e.total)+'%'};
@@ -189,7 +203,7 @@ async function poll(){if(busy)return;busy=true;try{const s=await (await fetch('/
  if(u.installing){$('updbar').classList.remove('hide');$('updp').style.width=Math.max(0,u.progress)+'%';$('upds').textContent='Instalando '+Math.max(0,u.progress)+'%...';$('updb').disabled=true}
  else if(u.error&&u.available)$('upds').textContent=u.error;
  $('fw').textContent='Versión instalada: '+u.current+(u.checked?(u.available?' - nueva: '+u.latest:' - al día'):'');
- $('sys').textContent='Batería '+s.bat+' V - memoria libre '+Math.round(s.heap/1024)+' KB'}catch(e){$('net').textContent='sin conexión'}busy=false}
+ $('btst').textContent=u.bt_installed?('Instalado'+(u.bt_ver?' (versión '+u.bt_ver+')':'')+' - último usado: '+(u.bt_sub==1?'Transmisor':'Parlante')):'No instalado todavía: se descarga al elegirlo';$('sys').textContent='Batería '+s.bat+' V - memoria libre '+Math.round(s.heap/1024)+' KB'}catch(e){$('net').textContent='sin conexión'}busy=false}
 poll();setInterval(poll,3000);
 </script></body></html>)HTML";
 
@@ -297,8 +311,13 @@ void handle_mode() {
   else if (to == "net" && !is_net()) rf_remote_switch_to_net();
 }
 void handle_update_check() {
-  if (!updater_check_async()) { send_text(updater.checking ? 200 : 503, updater.checking ? "ok" : updater.error); return; }
-  send_text(200, "ok");
+  if (is_net()) { net_action_update_check(); send_text(200, "ok"); return; }
+  if (updater_check_async() || updater.checking) { send_text(200, "ok"); return; }
+  // RF mode leaves too little RAM for HTTPS: let the internet mode check and install.
+  send_text(200, "La radio pasa a modo Internet para buscar e instalar la actualización");
+  delay(300);
+  updater_set_pending(true);
+  rf_remote_switch_to_net();
 }
 void handle_update_start() {
   if (!updater.available) { send_text(400, "Primero buscá una actualización"); return; }
@@ -310,7 +329,28 @@ void handle_update_start() {
     rf_remote_switch_to_net();
   }
 }
-String upload_error;
+String upload_error, bt_error;
+void handle_bt_go() {
+  const int sub = arg_int("sub", 0) == 1 ? 1 : 0;
+  send_text(200, "ok");
+  delay(300);
+  if (is_net()) { net_action_bluetooth(sub); return; }
+  boot_mode_set_bt_sub(sub == 1 ? BT_SUB_TRANSMITTER : BT_SUB_SPEAKER);
+  rf_remote_switch_bluetooth();
+}
+void handle_bt_upload_done() {
+  if (bt_error.length()) send_text(400, bt_error); else send_text(200, "ok");
+}
+void handle_bt_upload_data() {
+  HTTPUpload& up = server.upload();
+  if (up.status == UPLOAD_FILE_START) {
+    bt_error = "";
+    if (is_net()) net_action_stop();
+    updater_bt_upload_begin();
+  } else if (up.status == UPLOAD_FILE_WRITE) updater_bt_upload_write(up.buf, up.currentSize);
+  else if (up.status == UPLOAD_FILE_END) updater_bt_upload_end(&bt_error);
+  else if (up.status == UPLOAD_FILE_ABORTED) { updater_bt_upload_end(nullptr); bt_error = "Se interrumpió la subida"; }
+}
 void handle_upload_done() {
   if (upload_error.length()) { send_text(400, upload_error); return; }
   send_text(200, "ok");
@@ -386,6 +426,8 @@ void webui_begin(bool captive_portal, webui_mode_t web_mode) {
   server.on("/api/update/check", HTTP_POST, handle_update_check);
   server.on("/api/update/start", HTTP_POST, handle_update_start);
   server.on("/api/update/upload", HTTP_POST, handle_upload_done, handle_upload_data);
+  server.on("/api/bt/go", HTTP_POST, handle_bt_go);
+  server.on("/api/bt/upload", HTTP_POST, handle_bt_upload_done, handle_bt_upload_data);
   server.onNotFound(handle_not_found);
   server.begin();
 }
@@ -396,3 +438,5 @@ void webui_update(void) {
   if (captive) dns.processNextRequest();
   server.handleClient();
 }
+
+#endif // CX8_BT_FIRMWARE

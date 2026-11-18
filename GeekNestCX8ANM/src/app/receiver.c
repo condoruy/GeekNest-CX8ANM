@@ -5,6 +5,7 @@
 #include "ui/splash.h"
 #include "rf_remote.h"
 #include "power.h"
+#include "boot_mode.h"
 #include <esp32-hal-cpu.h>
 #include "netradio/rfweb.h"
 #include "boards/board.h"
@@ -340,6 +341,28 @@ static void switch_to_net(void) {
   if (lcd) cx8_message("Radio Internet", "Reiniciando en modo WiFi...");
   boot_mode_switch(BOOT_MODE_NET);
 }
+// B+C held: main image -> Bluetooth modes; Bluetooth image -> speaker mode.
+static void switch_bc(void) {
+  flush_settings_if_possible();
+#ifdef CX8_BT_FIRMWARE
+  board_audio_set_muted(true); si473x_power_down(&chip);
+  boot_mode_set_bt_sub(BT_SUB_SPEAKER);
+  if (lcd) cx8_message("Parlante Bluetooth", "Reiniciando...");
+  boot_mode_restart();
+#else
+  if (boot_mode_bt_installed()) {
+    board_audio_set_muted(true); board_speaker_set_enabled(false); si473x_power_down(&chip);
+    if (lcd) cx8_message("Bluetooth", "Reiniciando en modo Bluetooth...");
+    boot_mode_switch(BOOT_MODE_BT);
+  }
+  // Not installed yet: the internet mode downloads it (HTTPS needs its RAM), then switches.
+  if (!rfweb_wifi_configured()) { rf_remote_notice("Configura el WiFi en Radio Internet", 5000); return; }
+  boot_mode_set_bt_install(true, boot_mode_bt_sub());
+  board_audio_set_muted(true); board_speaker_set_enabled(false); si473x_power_down(&chip);
+  if (lcd) cx8_message("Instalando Bluetooth", "Se descarga desde GitHub por WiFi...");
+  boot_mode_switch(BOOT_MODE_NET);
+#endif
+}
 static void key_input(uint32_t now) {
   enum { SWITCH_REPEATS = 9 }; // 0.7 s delay + 9 x 150 ms = about 2 s.
   uint8_t repeats;
@@ -353,8 +376,13 @@ static void key_input(uint32_t now) {
   if (pressed & (BOARD_KEY_B | BOARD_KEY_C)) key_a_repeats = 0;
   if ((repeats & BOARD_KEY_A) || both) {
     ++key_a_repeats;
-    if (key_a_repeats == 3) rf_remote_notice("Hold for Internet radio...", 2000);
-    if (key_a_repeats >= SWITCH_REPEATS) switch_to_net();
+#ifdef CX8_BT_FIRMWARE
+    if (key_a_repeats == 3) rf_remote_notice(both ? "Mantener: Parlante Bluetooth" : "Mantener: volver al receptor", 2000);
+    if (key_a_repeats >= SWITCH_REPEATS) { if (both) switch_bc(); else rf_remote_switch_to_main(); }
+#else
+    if (key_a_repeats == 3) rf_remote_notice(both ? "Mantener: modo Bluetooth" : "Mantener: Radio Internet", 2000);
+    if (key_a_repeats >= SWITCH_REPEATS) { if (both) switch_bc(); else switch_to_net(); }
+#endif
   }
   if (volume_keys && !both) { volume = clamp(volume + (volume_keys & BOARD_KEY_B ? 2 : -2), 0, 63); dirty = true; }
 }
@@ -364,6 +392,7 @@ static void power_off(void) {
   serial_println("Power off");
   board_audio_set_muted(true);
   si473x_power_down(&chip);
+  boot_mode_power_off_prepare();
   board_power_off();
 }
 #endif
@@ -405,7 +434,13 @@ void receiver_begin(void) {
   lcd = board_display_begin();
   if (lcd) {
     buffered = ui_begin(theme); board_display_set_brightness(brightness); power_begin(brightness);
-    cx8_splash("Receptor RF", "Tecla A 2 seg: Radio Internet"); delay(1400);
+    
+#ifdef CX8_BT_FIRMWARE
+    cx8_splash("Transmisor Bluetooth", "A 2s: receptor  -  B+C 2s: parlante");
+#else
+    cx8_splash("Receptor RF", "A 2s: Internet  -  B+C 2s: Bluetooth");
+#endif
+ delay(1400);
   }
   supply = board_battery_read();
   const bool radio_ready = board_radio_begin();
@@ -419,7 +454,11 @@ void receiver_begin(void) {
   // A key still held from power-on must be released before it acts.
   previous_pressed = held = board_button_pressed();
   if (failed) fail();
+#ifdef CX8_BT_FIRMWARE
+  setCpuFrequencyMhz(160); // SBC encoding for the Bluetooth transmitter
+#else
   setCpuFrequencyMhz(80); // CX8ANM: the receiver does not need 240 MHz; saves battery
+#endif
   rfweb_begin(); // CX8ANM: optional WiFi + web control; after the frame buffers are allocated.
 }
 void receiver_update(void) {
@@ -615,3 +654,12 @@ void rf_remote_set_clock(int64_t utc_seconds, int16_t utc_offset_minutes) {
   dirty = true;
 }
 void rf_remote_switch_to_net(void) { switch_to_net(); for (;;) {} }
+void rf_remote_switch_bluetooth(void) { switch_bc(); }
+#ifdef CX8_BT_FIRMWARE
+void rf_remote_switch_to_main(void) {
+  flush_settings_if_possible();
+  board_audio_set_muted(true); si473x_power_down(&chip);
+  if (lcd) cx8_message("Receptor RF", "Volviendo al firmware principal...");
+  boot_mode_switch(BOOT_MODE_RF);
+}
+#endif

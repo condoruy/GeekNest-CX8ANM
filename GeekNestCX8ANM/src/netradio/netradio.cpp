@@ -1,3 +1,4 @@
+#ifndef CX8_BT_FIRMWARE // Main image only (the Bluetooth image has no WiFi)
 // CX8ANM internet radio application for the GeekNest V5A.
 #include "netradio.h"
 #include "actions.h"
@@ -51,6 +52,8 @@ void on_time_sync(struct timeval*) { ntp_synced = true; }
 String names[NET_MAX_STATIONS];
 // Updates
 bool install_requested = false, install_pending = false, update_announced = false;
+bool resume_after_check = false; uint32_t check_at = 0;
+int bt_install_sub = -1;   // >= 0: install the Bluetooth image and switch to it
 uint32_t online_at = 0, last_update_check = 0;
 
 // Encoder push and side keys
@@ -130,13 +133,24 @@ void go_online() {
   screen_invalidate();
   Serial.printf("CX8ANM: online %s IP %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   online_at = millis();
+  bt_sub_t pending_sub;
+  if (boot_mode_take_bt_install(&pending_sub)) {
+    bt_install_sub = (int)pending_sub;
+    show_notice("Preparando el modo Bluetooth...", 20000);
+    if (!updater_check_async()) { bt_install_sub = -1; show_notice(updater.error, 6000); }
+    online_at = millis();
+    return; // No autoplay: the radio is about to switch
+  }
   install_pending = updater_take_pending(); // Requested from the RF web page
   if (install_pending && !updater_check_async()) {
     install_pending = false;
     show_notice(updater.error, 6000);
   }
   if (install_pending) show_notice("Buscando la actualización en GitHub...", 20000);
-  else if (net_config.autoplay) play_current();
+  else if (net_config.auto_update_check && updater_check_async()) {
+    last_update_check = millis();            // Check first, while memory is free; then play
+    resume_after_check = net_config.autoplay;
+  } else if (net_config.autoplay) play_current();
 }
 
 int wifi_bars() {
@@ -180,6 +194,25 @@ void progress_screen(int percent) { screen_progress("Actualizando firmware", per
   cx8_message("No se pudo actualizar", updater.error.c_str());
   delay(4000);
   boot_mode_restart(); // Back to a clean state with the current firmware
+}
+
+void bt_progress_screen(int percent) { screen_progress("Instalando modo Bluetooth", percent); }
+[[noreturn]] void go_bluetooth(int sub) {
+  save_now();
+  shutdown_audio();
+  boot_mode_set_bt_sub(sub == 1 ? BT_SUB_TRANSMITTER : BT_SUB_SPEAKER);
+  cx8_message(sub == 1 ? "Transmisor Bluetooth" : "Parlante Bluetooth", "Reiniciando en modo Bluetooth...");
+  WiFi.disconnect(true);
+  boot_mode_switch(BOOT_MODE_BT);
+}
+void install_bt_and_go(int sub) {
+  save_now();
+  shutdown_audio();
+  bt_progress_screen(0);
+  if (updater_install_bt(bt_progress_screen) && boot_mode_bt_installed()) go_bluetooth(sub);
+  cx8_message("No se pudo instalar Bluetooth", updater.error.c_str());
+  delay(4000);
+  boot_mode_restart();
 }
 
 // --- Input ------------------------------------------------------------------
@@ -239,6 +272,13 @@ void key_input(uint32_t now) {
     key_a_repeats = 0;
     overlay = overlay == OVERLAY_NONE ? OVERLAY_INFO : OVERLAY_NONE;
   }
+  const bool both = (repeats & BOARD_KEY_B) && (repeats & BOARD_KEY_C);
+  if (both) {
+    if (++key_a_repeats == 3) show_notice("Seguí apretando B y C para el modo Bluetooth", 2000);
+    if (key_a_repeats >= SWITCH_REPEATS) { key_a_repeats = 0; net_action_bluetooth((int)boot_mode_bt_sub()); }
+    return;
+  }
+  if (pressed & (BOARD_KEY_B | BOARD_KEY_C)) key_a_repeats = 0;
   if (repeats & BOARD_KEY_A) {
     if (++key_a_repeats == 3) show_notice("Seguí apretando A para pasar al receptor RF", 2000);
     if (key_a_repeats >= SWITCH_REPEATS) to_rf();
@@ -370,6 +410,28 @@ void net_action_wifi_saved(void) {
 }
 void net_action_switch_rf(void) { to_rf(); }
 void net_action_update_start(void) { install_requested = true; }
+void net_action_bluetooth(int sub) {
+  if (boot_mode_bt_installed()) go_bluetooth(sub);
+  if (phase != PHASE_ONLINE) { show_notice("Sin WiFi: no se puede descargar el modo Bluetooth", 5000); return; }
+  // Download needs RAM for HTTPS: stop the stream, check the manifest, install.
+  want_playing = false;
+  player_stop();
+  bt_install_sub = sub;
+  updater.checked_at = 0;
+  show_notice("Descargando el modo Bluetooth...", 20000);
+  check_at = millis() + 1500;
+  resume_after_check = false;
+}
+void net_action_update_check(void) {
+  if (updater.checking || check_at) return;
+  if (ESP.getMaxAllocHeap() >= 40000 && ESP.getFreeHeap() >= 60000 && updater_check_async()) return;
+  // Not enough RAM next to the stream: pause it, check, resume afterwards.
+  resume_after_check = want_playing;
+  want_playing = false;
+  player_stop();
+  show_notice("Buscando actualización...", 4000);
+  check_at = millis() + 1500;
+}
 bool net_is_access_point(void) { return phase == PHASE_ACCESS_POINT; }
 String net_status_json(void) {
   player_status_t p;
@@ -468,6 +530,13 @@ void netradio_update(void) {
   }
   if (p.state == PLAYER_PLAYING) { retry_at = 0; retry_delay = 5000; }
 
+  // Bluetooth image: install (after the manifest check) and switch.
+  if (bt_install_sub >= 0 && !updater.checking && updater.checked_at) {
+    const int sub = bt_install_sub;
+    bt_install_sub = -1;
+    if (updater.bt_url.length()) install_bt_and_go(sub);
+    show_notice(updater.error.length() ? updater.error : String("No hay modo Bluetooth publicado"), 6000);
+  }
   // Updates: requested from the web page, handed over from RF mode, or periodic checks.
   if (install_requested) install_update();
   if (install_pending && !updater.checking && updater.checked_at) {
@@ -476,7 +545,21 @@ void netradio_update(void) {
     show_notice(updater.error.length() ? updater.error : String("Ya tenés la última versión"), 5000);
     if (net_config.autoplay) play_current();
   }
-  if (net_config.auto_update_check && !updater.checking && !install_pending &&
+  // A check that needs the stream paused (HTTPS needs RAM), then resume.
+  if (check_at && (int32_t)(now - check_at) >= 0) {
+    check_at = 0;
+    if (!updater_check_async()) {
+      show_notice(updater.error, 5000);
+      bt_install_sub = -1;
+      if (resume_after_check) { resume_after_check = false; play_current(); }
+    }
+  }
+  if (resume_after_check && !updater.checking && !check_at && !install_requested) {
+    resume_after_check = false;
+    play_current();
+  }
+  if (net_config.auto_update_check && !updater.checking && !install_pending && !resume_after_check &&
+      ESP.getMaxAllocHeap() >= 40000 &&
       ((!last_update_check && now - online_at > 30000) || (last_update_check && now - last_update_check > 12UL * 3600 * 1000))) {
     last_update_check = now;
     updater_check_async();
@@ -510,3 +593,5 @@ void netradio_update(void) {
   if (now - last_draw >= 100 && power_screen_on()) { last_draw = now; draw(now); }
   delay(2);
 }
+
+#endif // CX8_BT_FIRMWARE

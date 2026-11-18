@@ -45,6 +45,8 @@ void rf_remote_notice(const char* text, uint32_t ms);
 void rf_remote_set_clock(int64_t utc_seconds, int16_t utc_offset_minutes); // From NTP
 void rf_remote_set_utc_offset(int16_t minutes);
 void rf_remote_switch_to_net(void) __attribute__((noreturn));
+void rf_remote_switch_bluetooth(void);   // Main: Bluetooth (installs it first if needed). BT image: speaker
+void rf_remote_switch_to_main(void);     // BT image only: back to the main receiver
 
 #ifdef __cplusplus
 }

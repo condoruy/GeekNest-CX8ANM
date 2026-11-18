@@ -1,3 +1,10 @@
+#ifdef CX8_BT_FIRMWARE
+// The Bluetooth image has no WiFi: the receiver runs without web control.
+#include "rfweb.h"
+void rfweb_begin(void) {}
+void rfweb_update(void) {}
+bool rfweb_wifi_configured(void) { return false; }
+#else
 #include "rfweb.h"
 #include "config.h"
 #include "updater.h"
@@ -65,6 +72,8 @@ String rf_status_json(void) {
   return j;
 }
 
+bool rfweb_wifi_configured(void) { net_config_load(); return net_config.ssid.length() > 0; }
+
 void rfweb_begin(void) {
   net_config_load(); // Also applies the knob direction
   if (!net_config.rf_wifi || !net_config.ssid.length()) {
@@ -128,3 +137,5 @@ void rfweb_update(void) {
   }
   webui_update();
 }
+
+#endif // CX8_BT_FIRMWARE

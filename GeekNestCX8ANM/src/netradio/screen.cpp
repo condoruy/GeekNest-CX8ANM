@@ -1,3 +1,4 @@
+#ifndef CX8_BT_FIRMWARE // Main image only (the Bluetooth image has no WiFi)
 #include "screen.h"
 #include "boards/display.hpp"
 #include "ui/splash.h"
@@ -353,3 +354,5 @@ void screen_progress(const char* title, int percent) {
   d.endWrite();
   full = true;
 }
+
+#endif // CX8_BT_FIRMWARE

@@ -1,3 +1,4 @@
+#ifndef CX8_BT_FIRMWARE // Main image only (the Bluetooth image has no WiFi)
 #include "player.h"
 #include <Arduino.h>
 #include <Audio.h>
@@ -176,3 +177,5 @@ void player_get_status(player_status_t* out) {
   portEXIT_CRITICAL(&lock);
 }
 uint32_t player_generation(void) { return status.generation; }
+
+#endif // CX8_BT_FIRMWARE
