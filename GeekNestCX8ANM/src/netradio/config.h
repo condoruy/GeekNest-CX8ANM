@@ -20,6 +20,9 @@ struct net_config_t {
   bool rf_wifi = true;        // WiFi + web control while in receiver (RF) mode
   bool auto_update_check = true;
   bool encoder_inverted = true; // Knob direction (this V5A turns the other way)
+  uint16_t screen_dim_s = 30;   // Battery: dim the screen after this idle time (0 = never)
+  uint16_t screen_off_s = 120;  // Battery: switch the screen off (0 = never)
+  uint8_t rf_wifi_off_min = 15; // Battery: WiFi off in RF mode after minutes without web use (0 = never)
   String favorites;           // RF favorites, "Name|Hz|MODE" lines (parsed by the web page)
 };
 

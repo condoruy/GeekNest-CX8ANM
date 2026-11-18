@@ -9,6 +9,7 @@
 extern "C" {
 #include "app/boot_mode.h"
 #include "app/rf_remote.h"
+#include "app/power.h"
 #include "boards/board.h"
 }
 
@@ -17,6 +18,7 @@ WebServer server(80);
 DNSServer dns;
 bool captive = false;
 webui_mode_t mode = WEBUI_NET;
+uint32_t last_request = 0;
 
 const char PAGE[] PROGMEM = R"HTML(<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
@@ -95,6 +97,12 @@ label{display:block;font-size:13px;color:var(--dim);margin:8px 0 4px}label.ck{di
 <div class="net hide"><label>Brillo de pantalla</label><input type="range" min="16" max="255" id="bri" onchange="api('bri?v='+this.value)"></div>
 <label class="ck"><input type="checkbox" id="rfwifi" onchange="api('options?rfwifi='+(this.checked?1:0))"> WiFi y control web también en modo receptor RF</label>
 <p class="sm">Apagarlo reduce el ruido del WiFi cuando escuchás onda corta débil.</p>
+<h2 style="margin-top:16px">Batería</h2>
+<div class="grid"><div><label>Atenuar pantalla tras</label><select id="dim" onchange="api('options?dim='+this.value)"><option value="0">Nunca</option><option value="15">15 s</option><option value="30">30 s</option><option value="60">1 min</option><option value="120">2 min</option></select></div>
+<div><label>Apagar pantalla tras</label><select id="off" onchange="api('options?off='+this.value)"><option value="0">Nunca</option><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option></select></div></div>
+<div class="grid"><div><label>WiFi en modo RF se apaga tras</label><select id="rfwoff" onchange="api('options?rfwoff='+this.value)"><option value="0">Nunca</option><option value="5">5 min sin usar la web</option><option value="15">15 min sin usar la web</option><option value="60">1 h sin usar la web</option></select></div>
+<div><label>Apagar la radio en <span id="slp"></span></label><select id="sleep" onchange="api('options?sleep='+this.value);this.value=''"><option value="">(elegir)</option><option value="0">Cancelar</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hora</option><option value="90">1 h 30</option><option value="120">2 horas</option></select></div></div>
+<p class="sm">La pantalla apagada se enciende con cualquier tecla o la rueda (ese primer toque solo la enciende). Con batería muy baja la radio avisa y se apaga sola para cuidar la pila.</p>
 <label class="ck"><input type="checkbox" id="encinv" onchange="api('options?encinv='+(this.checked?1:0))"> Invertir el sentido de la perilla</label>
 <label class="ck"><input type="checkbox" id="autoupd" onchange="api('options?autoupd='+(this.checked?1:0))"> Buscar actualizaciones automáticamente</label>
 <div class="row" style="margin-top:12px"><button id="swb" onclick="switchMode()">Cambiar de modo</button></div></section>
@@ -176,7 +184,7 @@ async function poll(){if(busy)return;busy=true;try{const s=await (await fetch('/
   $('pp').innerHTML=(s.state=='PLAYING'||s.state=='CONNECTING')?'&#9632; Detener':'&#9654; Escuchar';$('mute').textContent=s.mute?'Activar sonido':'Silenciar';
   if(document.activeElement!=$('vol')){$('vol').value=s.vol;$('vtxt').textContent=s.vol}if(document.activeElement!=$('bri'))$('bri').value=s.bri;
   if(s.count!=L.length)loadList();else render()} else renderRF();
- if(document.activeElement!=$('tz'))$('tz').value=s.tz;$('rfwifi').checked=s.rfwifi;$('autoupd').checked=s.autoupd;$('encinv').checked=s.encinv;
+ if(document.activeElement!=$('tz'))$('tz').value=s.tz;$('rfwifi').checked=s.rfwifi;$('autoupd').checked=s.autoupd;$('encinv').checked=s.encinv;for(const k of ['dim','off','rfwoff'])if(document.activeElement!=$(k)&&s[k]!==undefined)$(k).value=String(s[k]);$('slp').textContent=s.sleep?'(faltan '+s.sleep+' min)':'';
  const u=s.update;$('upd').classList.toggle('hide',!(u.available||u.installing));$('updv').textContent='Versión '+u.latest;$('updn').textContent=u.notes||'';
  if(u.installing){$('updbar').classList.remove('hide');$('updp').style.width=Math.max(0,u.progress)+'%';$('upds').textContent='Instalando '+Math.max(0,u.progress)+'%...';$('updb').disabled=true}
  else if(u.error&&u.available)$('upds').textContent=u.error;
@@ -269,6 +277,11 @@ void handle_timezone() {
 void handle_options() {
   if (server.hasArg("rfwifi")) net_config.rf_wifi = arg_int("rfwifi", 1) != 0;
   if (server.hasArg("autoupd")) net_config.auto_update_check = arg_int("autoupd", 1) != 0;
+  if (server.hasArg("dim")) net_config.screen_dim_s = (uint16_t)constrain(arg_int("dim", 30), 0, 3600);
+  if (server.hasArg("off")) net_config.screen_off_s = (uint16_t)constrain(arg_int("off", 120), 0, 7200);
+  if (server.hasArg("rfwoff")) net_config.rf_wifi_off_min = (uint8_t)constrain(arg_int("rfwoff", 15), 0, 240);
+  if (server.hasArg("sleep")) power_set_sleep_timer((uint16_t)constrain(arg_int("sleep", 0), 0, 600));
+  power_configure(net_config.screen_dim_s, net_config.screen_off_s);
   if (server.hasArg("encinv")) {
     net_config.encoder_inverted = arg_int("encinv", 1) != 0;
     board_encoder_set_inverted(net_config.encoder_inverted);
@@ -329,7 +342,7 @@ void webui_begin(bool captive_portal, webui_mode_t web_mode) {
   mode = web_mode;
   if (captive) dns.start(53, "*", WiFi.softAPIP());
   server.on("/", HTTP_GET, handle_root);
-  server.on("/api/status", HTTP_GET, [] { if (low_memory()) return; server.send(200, "application/json", is_net() ? net_status_json() : rf_status_json()); });
+  server.on("/api/status", HTTP_GET, [] { last_request = millis(); if (low_memory()) return; server.send(200, "application/json", is_net() ? net_status_json() : rf_status_json()); });
   // Internet radio
   server.on("/api/stations", HTTP_GET, [] { send_text(200, net_config_stations_text()); });
   server.on("/api/stations", HTTP_POST, handle_stations_post);
@@ -376,6 +389,8 @@ void webui_begin(bool captive_portal, webui_mode_t web_mode) {
   server.onNotFound(handle_not_found);
   server.begin();
 }
+
+uint32_t webui_last_request(void) { return last_request; }
 
 void webui_update(void) {
   if (captive) dns.processNextRequest();

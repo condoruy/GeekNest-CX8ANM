@@ -8,3 +8,5 @@ void webui_begin(bool captive_portal, webui_mode_t mode);
 void webui_update(void);
 // Status JSON of the receiver (rfweb.cpp).
 String rf_status_json(void);
+// millis() of the last status request (a page open polls it every few seconds).
+uint32_t webui_last_request(void);

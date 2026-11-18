@@ -10,6 +10,7 @@
 #include <time.h>
 extern "C" {
 #include "app/rf_remote.h"
+#include "app/power.h"
 #include "boards/board.h"
 }
 
@@ -52,6 +53,7 @@ String rf_status_json(void) {
     j += "\"temp\":" + String(s.temperature_milli / 1000.0f, 1) + ",\"hum\":" + String(s.humidity_milli / 1000.0f, 1) + ",";
   j += "\"tz\":" + String(net_config.utc_offset) + ",\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",";
   j += "\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",\"encinv\":" + String(net_config.encoder_inverted ? "true" : "false") + ",";
+  j += "\"dim\":" + String(power_dim_seconds()) + ",\"off\":" + String(power_off_seconds()) + ",\"sleep\":" + String(power_sleep_minutes_left()) + ",\"rfwoff\":" + String(net_config.rf_wifi_off_min) + ",";
   j += "\"heap\":" + String(ESP.getFreeHeap()) + ",\"bands\":[";
   for (int i = 0; i < rf_remote_band_count(); ++i) {
     bool available; uint32_t lo, hi;
@@ -84,9 +86,24 @@ void rfweb_begin(void) {
   started = last_attempt = millis();
 }
 
+static void wifi_off(const char* why) {
+  Serial.printf("CX8ANM: RF WiFi off (%s)\n", why);
+  MDNS.end();
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  phase = RF_WEB_OFF;
+  rf_remote_notice("WiFi apagado (ahorro de bateria)", 4000);
+}
+
 void rfweb_update(void) {
   if (phase == RF_WEB_OFF) return;
   const uint32_t now = millis();
+  // Battery saver: WiFi off after N minutes without the web page open (or without connecting).
+  if (net_config.rf_wifi_off_min) {
+    const uint32_t limit = net_config.rf_wifi_off_min * 60000UL;
+    const uint32_t last = webui_last_request() && (int32_t)(webui_last_request() - started) > 0 ? webui_last_request() : started;
+    if (now - last > limit) { wifi_off(phase == RF_WEB_ONLINE ? "idle" : "no network"); return; }
+  }
   if (phase == RF_WEB_CONNECTING) {
     if (WiFi.status() == WL_CONNECTED) {
       phase = RF_WEB_ONLINE;

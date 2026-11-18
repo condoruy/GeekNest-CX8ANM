@@ -16,6 +16,7 @@
 #include <esp_sntp.h>
 extern "C" {
 #include "app/boot_mode.h"
+#include "app/power.h"
 #include "boards/board.h"
 }
 
@@ -211,7 +212,10 @@ void toggle_mute() {
 void button_input(uint32_t now) {
   board_button_update(now);
   const bool pressed = board_button_pressed();
-  if (pressed && !previous_pressed) { pressed_at = now; held = long_pending = power_pending = false; }
+  if (pressed && !previous_pressed) {
+    pressed_at = now; held = long_pending = power_pending = false;
+    if (power_wake()) { held = true; screen_invalidate(); } // First press only wakes the screen
+  }
   if (pressed && !held) {
     if (now - pressed_at >= POWER_OFF_MS) {
       if (!power_pending) { power_pending = true; show_notice("Soltá la rueda para apagar", 10000); }
@@ -229,6 +233,8 @@ void key_input(uint32_t now) {
   enum { SWITCH_REPEATS = 9 };
   uint8_t repeats;
   const uint8_t pressed = board_keys_read(now, &repeats);
+  if (pressed && power_wake()) { screen_invalidate(); return; } // First key only wakes the screen
+  if (repeats) power_wake();
   if (pressed & BOARD_KEY_A) {
     key_a_repeats = 0;
     overlay = overlay == OVERLAY_NONE ? OVERLAY_INFO : OVERLAY_NONE;
@@ -245,6 +251,7 @@ void key_input(uint32_t now) {
 }
 void encoder_input() {
   const int delta = board_encoder_read();
+  if (delta && power_wake()) { screen_invalidate(); return; }
   if (!delta || !net_config.count) return;
   if (overlay != OVERLAY_BROWSE) { open_browse(); }
   browse_index = ((browse_index + delta) % net_config.count + net_config.count) % net_config.count;
@@ -338,7 +345,7 @@ void net_action_volume(int volume) {
 void net_action_mute(bool value) { if (value != muted) toggle_mute(); }
 void net_action_brightness(int value) {
   net_config.brightness = (uint8_t)constrain(value, 16, 255);
-  screen_set_brightness(net_config.brightness);
+  power_set_brightness(net_config.brightness);
   touch_state();
 }
 void net_action_timezone(int minutes) {
@@ -383,6 +390,7 @@ String net_status_json(void) {
   j += "\"bri\":" + String(net_config.brightness) + ",\"tz\":" + String(net_config.utc_offset) + ",";
   j += "\"rfwifi\":" + String(net_config.rf_wifi ? "true" : "false") + ",\"autoupd\":" + String(net_config.auto_update_check ? "true" : "false") + ",\"encinv\":" + String(net_config.encoder_inverted ? "true" : "false") + ",";
   j += "\"bat\":" + String(battery.volts, 2) + ",\"heap\":" + String(ESP.getFreeHeap()) + ",";
+  j += "\"dim\":" + String(power_dim_seconds()) + ",\"off\":" + String(power_off_seconds()) + ",\"sleep\":" + String(power_sleep_minutes_left()) + ",\"rfwoff\":" + String(net_config.rf_wifi_off_min) + ",";
   j += "\"update\":" + updater_json();
   j += "}";
   return j;
@@ -399,6 +407,7 @@ void netradio_begin(void) {
   const bool lcd = board_display_begin();
   if (lcd) {
     screen_begin(net_config.brightness);
+    power_begin(net_config.brightness);
     cx8_splash("Radio Internet", "Tecla A 2 seg: Receptor RF");
   }
   battery = board_battery_read();
@@ -479,12 +488,25 @@ void netradio_update(void) {
   if (!clock_stored && ntp_synced) store_clock_for_receiver();
   if (state_dirty && now - state_changed > 3000) save_now();
   if (now - last_battery >= 5000) { last_battery = now; battery = board_battery_read(); }
+  // Battery saving: CPU at 80 MHz and the I2S amplifier off whenever nothing plays.
+  static int cpu_mhz = 0;
+  const int want_mhz = want_playing ? 240 : 80;
+  if (want_mhz != cpu_mhz) { setCpuFrequencyMhz(want_mhz); cpu_mhz = want_mhz; }
+  static int amp = -1;
+  const int want_amp = want_playing && !muted && net_config.volume > 0;
+  if (want_amp != amp) { digitalWrite(2, want_amp ? HIGH : LOW); amp = want_amp; }
+  switch (power_update(now, battery.volts, battery.plausible)) {
+    case POWER_EVENT_LOW_BATTERY: power_wake(); screen_invalidate(); show_notice("Batería baja: cargá la radio pronto", 8000); break;
+    case POWER_EVENT_SHUTDOWN: Serial.println("CX8ANM: battery critical"); power_off();
+    case POWER_EVENT_SLEEP_TIMER: Serial.println("CX8ANM: sleep timer"); power_off();
+    default: break;
+  }
   static uint32_t last_heap_log = 0;
   if (now - last_heap_log >= 10000) {
     last_heap_log = now;
     Serial.printf("CX8ANM: heap libre=%u minimo=%u bloque=%u wifi=%d\n", ESP.getFreeHeap(), ESP.getMinFreeHeap(),
                   ESP.getMaxAllocHeap(), WiFi.status() == WL_CONNECTED);
   }
-  if (now - last_draw >= 100) { last_draw = now; draw(now); }
+  if (now - last_draw >= 100 && power_screen_on()) { last_draw = now; draw(now); }
   delay(2);
 }

@@ -4,6 +4,8 @@
 #include "boot_mode.h"
 #include "ui/splash.h"
 #include "rf_remote.h"
+#include "power.h"
+#include <esp32-hal-cpu.h>
 #include "netradio/rfweb.h"
 #include "boards/board.h"
 #include "drivers/si473x/si473x.h"
@@ -60,6 +62,7 @@ enum { LONG_PRESS_MS = 650, POWER_OFF_MS = 3000 }; // Power off well apart from 
 static uint32_t pressed_at = 0, edited_at = 0, last_signal = 0, last_battery = 0, last_draw = 0, last_tune = 0, last_rds = 0;
 
 static void switch_to_net(void);
+static bool amp_enabled = false; // CX8ANM: amplifier off while muted or at volume 0
 static char remote_notice[64];
 static uint32_t remote_notice_until = 0;
 static int clamp(int value, int low, int high) { return value < low ? low : value > high ? high : value; }
@@ -270,7 +273,7 @@ static void turn(int delta) {
     case UI_FIELD_SOFT_MUTE: r->soft_mute_db = clamp(r->soft_mute_db + delta, 0, 31); reception_dirty = true; break;
     case UI_FIELD_BRIGHTNESS:
       brightness = clamp(brightness + delta * 8, 8, 255);
-      if (lcd) board_display_set_brightness(brightness);
+      if (lcd) power_set_brightness(brightness);
       break;
     case UI_FIELD_BATTERY: if (delta % 2) battery_volts = !battery_volts; break;
     case UI_FIELD_COUNT: break;
@@ -341,6 +344,8 @@ static void key_input(uint32_t now) {
   enum { SWITCH_REPEATS = 9 }; // 0.7 s delay + 9 x 150 ms = about 2 s.
   uint8_t repeats;
   const uint8_t pressed = board_keys_read(now, &repeats);
+  if (pressed && power_wake()) { dirty = true; return; } // First key only wakes the screen
+  if (repeats) power_wake();
   const uint8_t volume_keys = (pressed | repeats) & (BOARD_KEY_B | BOARD_KEY_C);
   // A held, or B and C held together, for about 2 s switches to internet radio.
   const bool both = (repeats & BOARD_KEY_B) && (repeats & BOARD_KEY_C);
@@ -367,6 +372,7 @@ static void button_input(uint32_t now) {
   const bool pressed = board_button_pressed();
   if (pressed && !previous_pressed) {
     pressed_at = now; held = long_pending = power_pending = false;
+    if (power_wake()) { held = true; dirty = true; } // First press only wakes the screen
     if (chip.seeking || pending_seek) { stop_seek(true); held = true; }
   }
   if (pressed && !held) {
@@ -398,7 +404,7 @@ void receiver_begin(void) {
   if (BOARD_HAS_RTC) restore_clock();
   lcd = board_display_begin();
   if (lcd) {
-    buffered = ui_begin(theme); board_display_set_brightness(brightness);
+    buffered = ui_begin(theme); board_display_set_brightness(brightness); power_begin(brightness);
     cx8_splash("Receptor RF", "Tecla A 2 seg: Radio Internet"); delay(1400);
   }
   supply = board_battery_read();
@@ -413,6 +419,7 @@ void receiver_begin(void) {
   // A key still held from power-on must be released before it acts.
   previous_pressed = held = board_button_pressed();
   if (failed) fail();
+  setCpuFrequencyMhz(80); // CX8ANM: the receiver does not need 240 MHz; saves battery
   rfweb_begin(); // CX8ANM: optional WiFi + web control; after the frame buffers are allocated.
 }
 void receiver_update(void) {
@@ -420,7 +427,8 @@ void receiver_update(void) {
   if (theme_notice && now - theme_changed_at >= 1800) { theme_notice = false; dirty = true; }
   button_input(now);
   key_input(now);
-  const int delta = board_encoder_read(); if (delta) turn(delta);
+  const int delta = board_encoder_read();
+  if (delta && !power_wake()) turn(delta); else if (delta) dirty = true;
   serial_input();
   if (!failed && reconfigure && now - edited_at >= 180) {
     board_audio_set_muted(true); audio_ready = false;
@@ -464,8 +472,12 @@ void receiver_update(void) {
       dirty = true;
     }
     if (!failed && !chip.tuning && !chip.seeking && !pending_seek && on_frequency() && !audio_ready) {
-      if (set_audio_muted(muted)) { audio_ready = true; board_speaker_set_enabled(true); }
+      if (set_audio_muted(muted)) { audio_ready = true; board_speaker_set_enabled(true); amp_enabled = true; }
       dirty = true;
+    }
+    if (!failed && audio_ready && amp_enabled != (!muted && volume > 0)) {
+      amp_enabled = !muted && volume > 0;
+      board_speaker_set_enabled(amp_enabled);
     }
     if (!failed && applied_volume != volume) {
       if (!si473x_set_volume(&chip, volume)) fail(); else applied_volume = volume;
@@ -481,7 +493,15 @@ void receiver_update(void) {
   rds_activity_update(&rds_activity, &chip.rds_status,
     !failed && !reconfigure && !chip.tuning && !chip.seeking && on_frequency(), now);
   if (was_receiving != rds_activity.receiving) dirty = true;
-  if (now - last_battery >= 1000) { last_battery = now; supply = board_battery_read(); dirty = true; }
+  if (now - last_battery >= 1000) { last_battery = now; supply = board_battery_read(); if (power_screen_on()) dirty = true; }
+  switch (power_update(now, supply.volts, supply.plausible)) {
+    case POWER_EVENT_LOW_BATTERY: power_wake(); rf_remote_notice("Bateria baja - cargar pronto", 8000); break;
+#if BOARD_CAN_POWER_OFF
+    case POWER_EVENT_SHUTDOWN: serial_println("Battery critical"); power_off(); break;
+    case POWER_EVENT_SLEEP_TIMER: serial_println("Sleep timer"); power_off(); break;
+#endif
+    default: break;
+  }
   if (radio_message()[0] && now - last_draw >= 50) dirty = true;
   if (rds_clock_sync_update(&rds_clock_sync, rds_clock_time(&chip.rds), &device_clock, hal_monotonic_ms()) && BOARD_HAS_RTC)
     store_clock();
@@ -491,10 +511,10 @@ void receiver_update(void) {
     uint16_t samples[SPECTRUM_SAMPLES];
     if (board_audio_read(samples, SPECTRUM_SAMPLES)) {
       spectrum_bars(samples, spectrum); spectrum_known = true; last_spectrum = now;
-      if (lcd && !dirty) draw(true);
+      if (lcd && !dirty && power_screen_on()) draw(true);
     }
   }
-  if (dirty && now - last_draw >= 50) { dirty = false; last_draw = now; if (lcd) draw(false); }
+  if (dirty && now - last_draw >= 50 && power_screen_on()) { dirty = false; last_draw = now; if (lcd) draw(false); }
   if (remote_notice[0] && (int32_t)(remote_notice_until - now) <= 0) { remote_notice[0] = 0; dirty = true; }
   rfweb_update();
   if (screenshot_requested && (last_draw || !lcd || !buffered)) {

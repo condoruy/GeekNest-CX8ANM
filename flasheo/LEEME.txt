@@ -1,4 +1,4 @@
-CX8ANM - Firmware para GeekNest Radio V5A (v1.1.3)
+CX8ANM - Firmware para GeekNest Radio V5A (v1.2.0)
 ====================================================
 Receptor RF (tinyradio, SI4732) + Radio Internet por WiFi, en un solo firmware.
 
@@ -104,6 +104,16 @@ EMISORAS INCLUIDAS (editables desde la web)
   Hay que poner la direccion del STREAM de audio (termina en .mp3, .aac, /stream, /; ...),
   no la pagina web de la radio. Las radios que solo transmiten en HLS (.m3u8) no funcionan.
   Las URL de las radios cambian con el tiempo: si una deja de andar, se corrige en la web.
+
+AHORRO DE BATERIA (desde v1.2.0, se ajusta en la web -> Ajustes -> Bateria)
+  - La pantalla se atenua a los 30 s y se apaga a los 2 min sin tocar nada.
+    Cualquier tecla o la rueda la vuelve a encender (ese primer toque solo la enciende).
+  - El receptor RF funciona a 80 MHz (antes 240): menos consumo, mismo funcionamiento.
+  - El amplificador se apaga cuando la radio esta en silencio, con volumen 0 o detenida.
+  - En modo RF el WiFi se apaga solo tras 15 min sin abrir la pagina web.
+  - Temporizador: "Apagar la radio en" 15 min a 2 horas.
+  - Con bateria baja avisa en pantalla; si baja demasiado se apaga sola para cuidar la pila 18650.
+  Para el maximo ahorro: modo RF, WiFi en RF apagado, brillo bajo y pantalla que se apague a 1 min.
 
 RELOJ
   En Radio Internet la hora se toma de Internet (NTP) y se guarda en el reloj interno (RTC)

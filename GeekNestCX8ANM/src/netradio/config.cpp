@@ -2,6 +2,7 @@
 #include <Preferences.h>
 extern "C" {
 #include "boards/board.h"
+#include "app/power.h"
 }
 
 net_config_t net_config;
@@ -87,9 +88,13 @@ void net_config_load(void) {
   net_config.rf_wifi = p.getBool("rfwifi", true);
   net_config.auto_update_check = p.getBool("autoupd", true);
   net_config.encoder_inverted = p.getBool("encinv", true);
+  net_config.screen_dim_s = p.getUShort("dim", 30);
+  net_config.screen_off_s = p.getUShort("off", 120);
+  net_config.rf_wifi_off_min = p.getUChar("rfwoff", 15);
   net_config.favorites = p.getString("fav", "");
   p.end();
   board_encoder_set_inverted(net_config.encoder_inverted);
+  power_configure(net_config.screen_dim_s, net_config.screen_off_s);
   if (net_config.volume > 21) net_config.volume = 21;
   if (net_config.brightness < 16) net_config.brightness = 16;
   if (!stored_text.length() || !net_config_parse_stations(stored_text)) net_config_reset_stations();
@@ -139,6 +144,9 @@ void net_config_save_state(void) {
   p.putBool("rfwifi", net_config.rf_wifi);
   p.putBool("autoupd", net_config.auto_update_check);
   p.putBool("encinv", net_config.encoder_inverted);
+  p.putUShort("dim", net_config.screen_dim_s);
+  p.putUShort("off", net_config.screen_off_s);
+  p.putUChar("rfwoff", net_config.rf_wifi_off_min);
   p.end();
 }
 
