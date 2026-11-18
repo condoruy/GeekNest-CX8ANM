@@ -1,0 +1,33 @@
+CX8ANM - Kit para Windows 11 (firmware v1.3.0)
+==============================================
+
+ANTES DE EMPEZAR (una sola vez)
+  1. Instalar Python 3 desde https://www.python.org/downloads/
+     En la primera pantalla marcar "Add python.exe to PATH".
+  2. Descomprimir este zip (clic derecho -> Extraer todo). No ejecutar los .bat desde dentro del zip.
+  3. Cable USB-C de DATOS (muchos cables solo cargan).
+  4. Si Windows no reconoce la radio, instalar el driver CH340 (buscar "CH340 driver" en wch-ic.com).
+
+PASOS
+  1. Conectar la radio y encenderla.
+  2. Doble clic en 1_RESPALDAR_firmware_original.bat  (solo la primera vez)
+     -> mantener APRETADA la rueda durante todo el proceso.
+     -> guardar respaldo_geeknest_original.bin en un lugar seguro.
+     Si ya hiciste el respaldo en la Mac, copia ese archivo a esta carpeta.
+  3. Doble clic en 2_INSTALAR_CX8ANM.bat  -> rueda APRETADA todo el tiempo.
+  4. Soltar la rueda, desconectar, apagar y encender: logo CX8ANM "fw 1.3.0".
+
+  El puerto COM se detecta solo. Si no lo encuentra, lo pide (ver Administrador de
+  dispositivos -> Puertos (COM y LPT)).
+
+  Si aparece "Windows protegio su PC": clic en "Mas informacion" -> "Ejecutar de todas formas".
+
+OTROS
+  3_RESTAURAR_firmware_original.bat  vuelve al firmware de fabrica (necesita el respaldo).
+  4_GUARDAR_REGISTRO.bat             guarda en registro.txt lo que informa la radio si falla.
+
+ERRORES COMUNES
+  "No serial data received"  -> no estabas apretando la rueda, o el cable es solo de carga.
+  "could not open port"      -> cerra otros programas que usen el puerto (Arduino, Cura, etc.).
+
+El manual de uso completo esta en LEEME.txt. 73!
